@@ -15,7 +15,7 @@
 extern bool extra_time_log;
 
 using namespace std;
-std::mutex outMutex;
+//std::mutex outMutex;
 
 struct Opening {
   double prob;
@@ -417,7 +417,7 @@ bool GameRunner::GenerateGame(
 
   // Generate game from openings
   if(!playSettings.fileOpenings.empty()) {
-    lock_guard<std::mutex> lock(outMutex);
+    // lock_guard<std::mutex> lock(outMutex);
     getRandomLibOpening(gameRand, hist, board, pla, playSettings);
   }
 
@@ -434,66 +434,6 @@ bool GameRunner::GenerateGame(
   // Весь алгоритм генерации в одну функцию
   if(board.numStonesOnBoard() == 0)
     RandomOpening::initializeBalancedRandomOpening(botB, botW, board, hist, pla, gameRand, this, otherGameProps);
-
-  /*
-  double balanceOpeningProb = playSettings.forSelfPlay ? 0.99 : 1.0;
-
-  if(playSettings.firstGamesWithPolicy) {
-    // Generate game with policy from algorithm LigthVector
-    if(playSettings.initGamesWithPolicy && otherGameProps.allowPolicyInit &&
-      (board.numStonesOnBoard() == 0 || playSettings.addMovesWithPolicy)) {
-      // Place moves with policy
-      double avgPolicyInitMoveNum = otherGameProps.isSgfPos ? playSettings.startPosesPolicyInitAvgMoveNum : playSettings.policyInitAvgMoveNum;
-      if(avgPolicyInitMoveNum > 0) {
-        // Perform the initialization using a different noised komi, to get a bit of opening policy mixing across komi
-        double temperature = playSettings.policyInitAreaTemperature;
-        assert(temperature > 0.0 && temperature < 10.0);
-        PlayUtils::initializeGameUsingPolicy(
-          botB, botW, board, hist, pla, gameRand, avgPolicyInitMoveNum, temperature, playSettings.policyInitGaussMoveNum);
-        if(playSettings.logGenerate && hist.getMovenum() > 0) {
-          lock_guard<std::mutex> lock(outMutex);
-          cout << "   Rule:" << Rules::writeBasicRule(hist.rules.basicRule) << " [" << board.x_size << "x"
-               << board.y_size << "] Game with policy moves: " << hist.getMoves(board.x_size, board.y_size)
-               << " last move: " << hist.getMovenum() << endl;
-        }
-      }
-    }
-    // Generate game balance from algorithm HZY
-    if(
-      playSettings.initGamesWithBalance && gameRand.nextBool(balanceOpeningProb)  &&
-      (board.numStonesOnBoard() == 0 || playSettings.addMovesWithBalance)) {
-      lock_guard<std::mutex> lock(outMutex);
-      RandomOpening::initializeBalancedRandomOpening(botB, botW, board, hist, pla, gameRand, playSettings);
-    }
-  } else {
-    // Generate game balance from algorithm HZY
-    if(
-      playSettings.initGamesWithBalance && gameRand.nextBool(balanceOpeningProb) &&
-      (board.numStonesOnBoard() == 0 || playSettings.addMovesWithBalance)) {
-      lock_guard<std::mutex> lock(outMutex);
-      RandomOpening::initializeBalancedRandomOpening(botB, botW, board, hist, pla, gameRand, playSettings);
-    }
-    // Generate game with policy from algorithm LigthVector
-    if(playSettings.initGamesWithPolicy && otherGameProps.allowPolicyInit &&
-      (board.numStonesOnBoard() == 0 || playSettings.addMovesWithPolicy)) {
-      // Place moves with policy
-      double avgPolicyInitMoveNum =
-        otherGameProps.isSgfPos ? playSettings.startPosesPolicyInitAvgMoveNum : playSettings.policyInitAvgMoveNum;
-      if(avgPolicyInitMoveNum > 0) {
-        double temperature = playSettings.policyInitAreaTemperature;
-        assert(temperature > 0.0 && temperature < 10.0);
-        PlayUtils::initializeGameUsingPolicy(
-          botB, botW, board, hist, pla, gameRand, avgPolicyInitMoveNum, temperature, playSettings.policyInitGaussMoveNum);
-        if(playSettings.logGenerate && hist.getMovenum() > 0) {
-          lock_guard<std::mutex> lock(outMutex);
-          cout << "   Rule:" << Rules::writeBasicRule(hist.rules.basicRule) << " [" << board.x_size << "x"
-               << board.y_size << "] Game with policy moves: " << hist.getMoves(board.x_size, board.y_size)
-               << " last move: " << hist.getMovenum() << endl;
-        }
-      }
-    }
-  }
-  */
 
   if(botW != botB)
     delete botW;
@@ -675,13 +615,16 @@ GameInitializer::GameInitializer(ConfigParser& cfg, Logger& logger, const string
 }
 
 void GameInitializer::initShared(ConfigParser& cfg, Logger& logger) {
-  allowedBasicRuleStrs = cfg.getStrings("basicRules", Rules::basicRuleStrings());
-
-  for(size_t i = 0; i < allowedBasicRuleStrs.size(); i++)
-    allowedBasicRules.push_back(Rules::parseBasicRule(allowedBasicRuleStrs[i]));
+  if(cfg.contains("basicRule"))
+    allowedBasicRules.push_back(Rules::parseBasicRule(cfg.getString("basicRule")));
+  else {
+    allowedBasicRuleStrs = cfg.getStrings("basicRules", Rules::basicRuleStrings());
+    for(size_t i = 0; i < allowedBasicRuleStrs.size(); i++)
+      allowedBasicRules.push_back(Rules::parseBasicRule(allowedBasicRuleStrs[i]));
+  }
 
   if(allowedBasicRules.size() <= 0)
-    throw IOError("basicRules must have at least one value in " + cfg.getFileName());
+    throw IOError("basicRules or basicRule must haves at least one value in " + cfg.getFileName());
 
   allowedVCNRuleStrs = cfg.getStrings("VCNRules", Rules::VCNRuleStrings());
 
@@ -694,6 +637,8 @@ void GameInitializer::initShared(ConfigParser& cfg, Logger& logger) {
   allowedFirstPassWinRules = cfg.getBools("firstPassWinRules");
   if(allowedFirstPassWinRules.size() <= 0)
     throw IOError("firstPassWinRules must have at least one value in " + cfg.getFileName());
+
+  moveLimitProb = cfg.contains("moveLimitProb") ? cfg.getDouble("moveLimitProb", 0.0, 1.0) : 0.0;
 
   if(cfg.contains("bSizes") == cfg.contains("bSizesXY"))
     throw IOError("Must specify exactly one of bSizes or bSizesXY");
@@ -736,9 +681,7 @@ void GameInitializer::initShared(ConfigParser& cfg, Logger& logger) {
     }
   } else if(cfg.contains("bSizesXY")) {
     if(cfg.contains("allowRectangleProb"))
-      throw IOError(
-        "Cannot specify allowRectangleProb when specifying bSizesXY, please adjust the relative frequency of "
-        "rectangles yourself");
+      throw IOError("Cannot specify allowRectangleProb when specifying bSizesXY, please adjust the relative frequency of rectangles yourself");
     allowedBSizes = cfg.getNonNegativeIntDashedPairs("bSizesXY", 2, Board::MAX_LEN);
     allowedBSizeRelProbs = cfg.getDoubles("bSizeRelProbs", 0.0, 1e100);
 
@@ -1092,6 +1035,8 @@ void GameInitializer::createGameSharedUnsynchronized(
     testAssert(startPos.moves.size() < 0xFFFFFF);
     for(size_t i = 0; i<startPos.moves.size(); i++) {
       bool isLegal = hist.isLegal(board,startPos.moves[i].loc,startPos.moves[i].pla);
+      // Makes a best effort to still use the position, stopping if we hit an illegal move. It's possible
+      // we hit this because of rules differences making a superko move or self-capture illegal, for example.
       if(!isLegal) {
         //If we stop due to illegality, it doesn't make sense to still use the hintLoc
         hintLoc = Board::NULL_LOC;
@@ -1112,6 +1057,14 @@ void GameInitializer::createGameSharedUnsynchronized(
   else {
     int xSize = allowedBSizes[bSizeIdx].first;
     int ySize = allowedBSizes[bSizeIdx].second;
+    if(!rules.firstPassWin && rules.VCNRule == Rules::VCNRULE_NOVC && rand.nextBool(moveLimitProb)) {
+      int maxMoves = rand.nextExponential() * 30 + 30 - rand.nextExponential() * 5;
+      if(maxMoves > xSize * ySize - 5)
+        maxMoves = 0;
+      if(maxMoves < 10)
+        maxMoves = 0;
+      rules.maxMoves = maxMoves;
+    }
     board = Board(xSize, ySize);
     pla = P_BLACK;
     hist.clear(board,pla,rules);
@@ -1227,7 +1180,7 @@ bool MatchPairer::getMatchup(BotSpec& botSpecB, BotSpec& botSpecW, Logger& logge
   botSpecW.baseParams = baseParamss[matchup.second];
   if(logMatch)
   {
-    lock_guard<std::mutex> lock(outMutex);
+    //lock_guard<std::mutex> lock(outMutex);
     cout << botSpecB.botName << " - " << botSpecW.botName << endl;
   }
 
@@ -1235,7 +1188,7 @@ bool MatchPairer::getMatchup(BotSpec& botSpecB, BotSpec& botSpecW, Logger& logge
     if(generate) {
       runner->GenerateGame(seed, botSpecB, botSpecW, logger, initialPosition);
       if(logMatch) {
-        lock_guard<std::mutex> lock(outMutex);
+        //lock_guard<std::mutex> lock(outMutex);
         cout << "Rule:" << Rules::writeBasicRule(initialPosition->hist.rules.basicRule) << " ["
              << initialPosition->board.x_size << "x" << initialPosition->board.y_size << "] Match game: "
              << initialPosition->hist.getMoves(initialPosition->board.x_size, initialPosition->board.y_size)
@@ -1244,7 +1197,7 @@ bool MatchPairer::getMatchup(BotSpec& botSpecB, BotSpec& botSpecW, Logger& logge
     }
     else {
       if(logMatch) {
-        lock_guard<std::mutex> lock(outMutex);
+        //lock_guard<std::mutex> lock(outMutex);
         cout << "Rule:" << Rules::writeBasicRule(initialPosition->hist.rules.basicRule) << " ["
              << initialPosition->board.x_size << "x" << initialPosition->board.y_size << "] Next match game: "
              << initialPosition->hist.getMoves(initialPosition->board.x_size, initialPosition->board.y_size)
@@ -1387,6 +1340,28 @@ static void extractValueTargets(ValueTargets& buf, const Search* toMoveBot, cons
   buf.noResult = (float)values.noResultValue;
 }
 
+static void extractQValueTargets(vector<QValueTargetMove>& buf, const Search* toMoveBot, const SearchNode* node) {
+  ConstSearchNodeChildrenReference children = node->getChildren();
+  int numChildren = children.iterateAndCountChildren();
+  for(int childIdx = 0; childIdx < numChildren; childIdx++) {
+    const SearchChildPointer& childPtr = children[childIdx];
+    const SearchNode* child = childPtr.getIfAllocated();
+
+    if(child == NULL)
+      continue;
+
+    ReportedSearchValues values;
+    bool success = toMoveBot->getNodeValues(child, values);
+    if(!success)
+      continue;
+    if(values.visits <= 0)
+      continue;
+
+    Loc moveLoc = childPtr.getMoveLoc();
+    buf.push_back(QValueTargetMove(moveLoc, (float)values.winLossValue, 0.0, values.visits));
+  }
+}
+
 static NNRawStats computeNNRawStats(const Search* bot, const Board& board, const BoardHistory& hist, Player pla) {
   NNResultBuf buf;
   MiscNNInputParams nnInputParams;
@@ -1438,6 +1413,7 @@ static void recordTreePositionsRec(
     SidePosition* sp = new SidePosition(board,hist,pla,numNeuralNetChangesSoFar);
     Play::extractPolicyTarget(sp->policyTarget, toMoveBot, node, locsBuf, playSelectionValuesBuf);
     extractValueTargets(sp->whiteValueTargets, toMoveBot, node);
+    extractQValueTargets(sp->whiteQValueTargets.targets, toMoveBot, node);
 
     double policySurprise = 0.0, policyEntropy = 0.0, searchEntropy = 0.0;
     bool success = toMoveBot->getPolicySurpriseAndEntropy(policySurprise, searchEntropy, policyEntropy, node);
@@ -1956,6 +1932,9 @@ FinishedGameData* Play::runGame(
     ValueTargets whiteValueTargets;
     extractValueTargets(whiteValueTargets, toMoveBot, toMoveBot->rootNode);
     gameData->whiteValueTargetsByTurn.push_back(whiteValueTargets);
+    QValueTargets whiteQValueTargets;
+    extractQValueTargets(whiteQValueTargets.targets, toMoveBot, toMoveBot->rootNode);
+    gameData->whiteQValueTargetsByTurn.push_back(whiteQValueTargets);
 
     if(!recordFullData) {
       //Go ahead and record this anyways with just the visits, as a bit of a hack so that the sgf output can also write the number of visits.
@@ -2254,6 +2233,7 @@ FinishedGameData* Play::runGame(
 
       Play::extractPolicyTarget(sp->policyTarget, toMoveBot, toMoveBot->rootNode, locsBuf, playSelectionValuesBuf);
       extractValueTargets(sp->whiteValueTargets, toMoveBot, toMoveBot->rootNode);
+      extractQValueTargets(sp->whiteQValueTargets.targets, toMoveBot, toMoveBot->rootNode);
 
       double policySurprise = 0.0, policyEntropy = 0.0, searchEntropy = 0.0;
       bool success = toMoveBot->getPolicySurpriseAndEntropy(policySurprise, searchEntropy, policyEntropy);

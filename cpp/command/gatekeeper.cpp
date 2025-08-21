@@ -21,6 +21,7 @@
 #include <csignal>
 
 using namespace std;
+using nlohmann::json;
 
 static std::atomic<bool> sigReceived(false);
 static std::atomic<bool> shouldStop(false);
@@ -46,7 +47,7 @@ namespace {
     NNEvaluator* nnEvalBaseline;
     NNEvaluator* nnEvalCandidate;
     MatchPairer* matchPairer;
-
+    GameRunner* gameRunner;
     string testModelFile;
     string testModelDir;
 
@@ -54,11 +55,28 @@ namespace {
     int numGameThreads;
     bool isDraining;
 
-    double noResultUtilityForWhite;
+    //double noResultUtilityForWhite;
 
     int numGamesTallied;
+
     double numBaselineWinPoints;
+    double numBaselineWinPointsBlack;
+    uint64_t numBaselineWin;
+    uint64_t numBaselineWinBlack;
+    uint64_t numBaselineDraw;
+    uint64_t numBaselineDrawBlack;
+    double numBaselineTimeUsed;
+    uint64_t cntMovesBaseline;
+
     double numCandidateWinPoints;
+    double numCandidateWinPointsBlack;
+    uint64_t numCandidateWin;
+    uint64_t numCandidateWinBlack;
+    uint64_t numCandidateDraw;
+    uint64_t numCandidateDrawBlack;
+    double numCandidateTimeUsed;
+    uint64_t cntMovesCandidate;
+
     double requiredCandidateWinProp;
 
     ofstream* sgfOut;
@@ -75,7 +93,8 @@ namespace {
       NNEvaluator* nevalB,
       NNEvaluator* nevalC,
       double reqWinProp,
-      ofstream* sOut
+      ofstream* sOut,
+      GameRunner* runner
     )
       :modelNameBaseline(nameB),
        modelNameCandidate(nameC),
@@ -87,17 +106,32 @@ namespace {
        finishedGameQueue(),
        numGameThreads(0),
        isDraining(false),
-       noResultUtilityForWhite(0.0),
+       //noResultUtilityForWhite(0.0),
        numGamesTallied(0),
        numBaselineWinPoints(0.0),
+       numBaselineWinPointsBlack(0.0),
+       numBaselineWin(0),
+       numBaselineWinBlack(0),
+       numBaselineDraw(0),
+       numBaselineDrawBlack(0),
+       numBaselineTimeUsed(0.0),
+       cntMovesBaseline(0),
        numCandidateWinPoints(0.0),
+       numCandidateWinPointsBlack(0.0),
+       numCandidateWin(0),
+       numCandidateWinBlack(0),
+       numCandidateDraw(0),
+       numCandidateDrawBlack(0),
+       numCandidateTimeUsed(0.0),
+       cntMovesCandidate(0),
        requiredCandidateWinProp(reqWinProp),
        sgfOut(sOut),
-       terminated(false)
+       terminated(false),
+       gameRunner(runner)
     {
       SearchParams baseParams = Setup::loadSingleParams(cfg,Setup::SETUP_FOR_OTHER);
 
-      noResultUtilityForWhite = baseParams.noResultUtilityForWhite;
+      //noResultUtilityForWhite = baseParams.noResultUtilityForWhite;
 
       //Initialize object for randomly pairing bots. Actually since this is only selfplay, this only
       //ever gives is the trivial base-vs-candidate pairing, but we use it also for keeping the game count and some logging.
@@ -109,7 +143,8 @@ namespace {
         {nnEvalBaseline,nnEvalCandidate},
         {baseParams, baseParams},
         {{0,1},{1,0}},
-        numGamesTotal
+        numGamesTotal,
+        gameRunner
       );
     }
 
@@ -121,49 +156,87 @@ namespace {
         delete sgfOut;
     }
 
-    void runWriteDataLoop(Logger& logger) {
+    void runWriteDataLoop(Logger& logger, const int64_t logGamesEvery) {
       while(true) {
         FinishedGameData* data;
         bool suc = finishedGameQueue.waitPop(data);
         if(!suc || data == NULL)
           break;
 
-        double whitePoints;
-        double blackPoints;
+        double whitePoints = 0.0;
+        double blackPoints = 0.0;
+        double whiteWinCount = 0;
+        double blackWinCount = 0;
+        double whiteTimeUsed = data->wTimeUsed;
+        double blackTimeUsed = data->bTimeUsed;
+        uint64_t whiteMovesCount = data->wMoveCount;
+        uint64_t blackMovesCount = data->bMoveCount;
+        uint64_t whiteDrawCount = 0;
+        uint64_t blackDrawCount = 0;
+
         if(data->endHist.isGameFinished && data->endHist.isNoResult) {
-          whitePoints = 0.5 * noResultUtilityForWhite + 0.5;
+          //whitePoints = 0.5 * noResultUtilityForWhite + 0.5;
+          whitePoints = 0.5;
+          whiteDrawCount = 1;
           blackPoints = 1.0 - whitePoints;
-          logger.write("Game " + Global::intToString(numGamesTallied) + ": noresult");
+          blackDrawCount = 1;
+
+          //if(numGamesTallied % logGamesEvery == 0)
+            //logger.write("Game " + Global::intToString(numGamesTallied) + ": noresult");
         }
         else {
           BoardHistory hist(data->endHist);
           Board endBoard = hist.getRecentBoard(0);
-          //Force game end just in caseif we crossed a move limit
-          //if(!hist.isGameFinished)
-          //  hist.endAndScoreGameNow(endBoard);
 
-          ostringstream oresult;
-          WriteSgf::printGameResult(oresult,hist);
+          //ostringstream oresult;
+          //WriteSgf::printGameResult(oresult,hist);
           if(hist.winner == P_BLACK) {
-            whitePoints = 0.0;
             blackPoints = 1.0;
-            logger.write("Game " + Global::intToString(numGamesTallied) + ": winner black " + data->bName + " " + oresult.str());
+            blackWinCount = 1;
+            // logger.write("Game " + Global::intToString(numGamesTallied) + ": winner black " + data->bName + " " + oresult.str());
           }
           else if(hist.winner == P_WHITE) {
             whitePoints = 1.0;
-            blackPoints = 0.0;
-            logger.write("Game " + Global::intToString(numGamesTallied) + ": winner white " + data->wName + " " + oresult.str());
+            whiteWinCount = 1;
+            // logger.write("Game " + Global::intToString(numGamesTallied) + ": winner white " + data->wName + " " + oresult.str());
           }
           else {
-            whitePoints = 0.5 * noResultUtilityForWhite + 0.5;
+            //whitePoints = 0.5 * noResultUtilityForWhite + 0.5;
+            whitePoints = 0.5;
+            whiteDrawCount = 1;
             blackPoints = 1.0 - whitePoints;
-            logger.write("Game " + Global::intToString(numGamesTallied) + ": draw " + oresult.str());
+            blackDrawCount = 1;
+            // logger.write("Game " + Global::intToString(numGamesTallied) + ": draw " + oresult.str());
           }
         }
 
         numGamesTallied++;
         numBaselineWinPoints += (data->bIdx == 0) ? blackPoints : whitePoints;
+        numBaselineWinPointsBlack += (data->bIdx == 0) ? blackPoints : 0.0;
+        numBaselineDraw += (data->bIdx == 0) ? blackDrawCount : whiteDrawCount;
+        numBaselineDrawBlack += (data->bIdx == 0) ? blackDrawCount : 0;
+        numBaselineTimeUsed += (data->bIdx == 0) ? blackTimeUsed : whiteTimeUsed;
+        cntMovesBaseline += (data->bIdx == 0) ? blackMovesCount : whiteMovesCount;
+        numBaselineWin += (data->bIdx == 0) ? blackWinCount : whiteWinCount;
+        numBaselineWinBlack += (data->bIdx == 0) ? blackWinCount : 0;
+
         numCandidateWinPoints += (data->bIdx == 1) ? blackPoints : whitePoints;
+        numCandidateWinPointsBlack += (data->bIdx == 1) ? blackPoints : 0.0;
+        numCandidateDraw += (data->bIdx == 1) ? blackDrawCount : whiteDrawCount;
+        numCandidateDrawBlack += (data->bIdx == 1) ? blackDrawCount : 0;
+        numCandidateTimeUsed += (data->bIdx == 1) ? blackTimeUsed : whiteTimeUsed;
+        cntMovesCandidate += (data->bIdx == 1) ? blackMovesCount : whiteMovesCount;
+        numCandidateWin += (data->bIdx == 1) ? blackWinCount : whiteWinCount;
+        numCandidateWinBlack += (data->bIdx == 1) ? blackWinCount : 0;
+
+        if(numGamesTallied % logGamesEvery == 0)
+          logger.write(
+            Global::strprintf(
+              "Finished %d games, score %.1f (candidate) to %.1f (baseline)",
+              numGamesTallied,
+              numCandidateWinPoints,
+              numBaselineWinPoints
+            ));
 
         if(sgfOut != NULL) {
           assert(data->startHist.moveHistory.size() <= data->endHist.moveHistory.size());
@@ -186,7 +259,6 @@ namespace {
             terminated.store(true);
           }
         }
-
       }
 
       if(sgfOut != NULL)
@@ -252,6 +324,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
   string sgfOutputDir;
   string selfplayDir;
   string openingsFile;
+  string copyAcceptedFile;
   double requiredCandidateWinProp;
   bool noAutoRejectOldModels;
   bool quitIfNoNetsToTest;
@@ -265,6 +338,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     TCLAP::ValueArg<string> acceptedModelsDirArg("","accepted-models-dir","Dir to write good models to",true,string(),"DIR");
     TCLAP::ValueArg<string> rejectedModelsDirArg("","rejected-models-dir","Dir to write bad models to",true,string(),"DIR");
     TCLAP::ValueArg<string> selfplayDirArg("","selfplay-dir","Dir where selfplay data will be produced if a model passes",false,string(),"DIR");
+    TCLAP::ValueArg<string> copyAcceptedFileArg("","copy-accepted-model","Copy of the accepted model",false,string(),"FILE");
     TCLAP::ValueArg<double> requiredCandidateWinPropArg("","required-candidate-win-prop","Required win prop to accept",false,0.5,"PROP");
     TCLAP::SwitchArg noAutoRejectOldModelsArg("","no-autoreject-old-models","Test older models than the latest accepted model");
     TCLAP::SwitchArg quitIfNoNetsToTestArg("","quit-if-no-nets-to-test","Terminate instead of waiting for a new net to test");
@@ -279,6 +353,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     cmd.add(noAutoRejectOldModelsArg);
     cmd.add(quitIfNoNetsToTestArg);
     cmd.add(openingsFileArg);
+    cmd.add(copyAcceptedFileArg);
     cmd.parseArgs(args);
 
     testModelsDir = testModelsDirArg.getValue();
@@ -290,6 +365,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     noAutoRejectOldModels = noAutoRejectOldModelsArg.getValue();
     quitIfNoNetsToTest = quitIfNoNetsToTestArg.getValue();
     openingsFile = openingsFileArg.getValue();
+    copyAcceptedFile = copyAcceptedFileArg.getValue();
 
     auto checkDirNonEmpty = [](const char* flag, const string& s) {
       if(s.length() <= 0)
@@ -322,7 +398,10 @@ int MainCmds::gatekeeper(const vector<string>& args) {
   logger.addFile(sgfOutputDir + "/log" + DateTime::getCompactDateTimeString() + "-" + Global::uint64ToHexString(seedRand.nextUInt64()) + ".log");
 
   logger.write("Gatekeeper Engine starting...");
+#ifndef NO_GIT_REVISION
   logger.write(string("Git revision: ") + Version::getGitRevision());
+#endif
+
   logger.write(string("Required candidate win prop: ") + Global::doubleToString(requiredCandidateWinProp));
 
   //Load runner settings
@@ -330,6 +409,8 @@ int MainCmds::gatekeeper(const vector<string>& args) {
   const bool logOpenings = cfg.contains("logOpenings")?cfg.getBool("logOpenings"):false;
   const int maxTryTimes = cfg.contains("maxTryTimes") ? cfg.getInt("maxTryTimes", 1, 1000) : 20;
   const string gameSeedBase = Global::uint64ToHexString(seedRand.nextUInt64());
+  const int logThreadsEvery = cfg.contains("logThreadsEvery") ? cfg.getInt("logThreadsEvery", 1, 10000) : 20;
+  const int64_t logGamesEvery = cfg.getInt64("logGamesEvery", 1, 1000000);
 
   PlaySettings playSettings = PlaySettings::loadForGatekeeper(cfg);
   playSettings.fileOpenings = openingsFile;
@@ -360,16 +441,40 @@ int MainCmds::gatekeeper(const vector<string>& args) {
   std::condition_variable waitNetAndStuffDataIsWritten;
 
   //Looping thread for writing data for a single net
-  auto dataWriteLoop = [&netAndStuffMutex,&netAndStuff,&netAndStuffDataIsWritten,&waitNetAndStuffDataIsWritten,&logger]() {
+  auto dataWriteLoop = [&netAndStuffMutex,&netAndStuff,&netAndStuffDataIsWritten,&waitNetAndStuffDataIsWritten,&logger, &logGamesEvery, &sgfOutputDir]() {
     string modelNameBaseline = netAndStuff->modelNameBaseline;
     string modelNameCandidate = netAndStuff->modelNameCandidate;
     logger.write("Data write loop starting for neural net: " + modelNameBaseline + " vs " + modelNameCandidate);
-    netAndStuff->runWriteDataLoop(logger);
+    netAndStuff->runWriteDataLoop(logger, logGamesEvery);
     logger.write("Data write loop finishing for neural net: " + modelNameBaseline + " vs " + modelNameCandidate);
 
     std::unique_lock<std::mutex> lock(netAndStuffMutex);
     netAndStuffDataIsWritten = true;
     waitNetAndStuffDataIsWritten.notify_all();
+
+    json j;
+    j["bot0name"] = modelNameBaseline;
+    j["bot1name"] = modelNameCandidate;
+    j["bot0model"] = modelNameBaseline;
+    j["bot1model"] = modelNameCandidate;
+    j["total"] = netAndStuff->numGamesTallied;
+    j["win0"] = netAndStuff->numBaselineWin;
+    j["lose0"] = netAndStuff->numCandidateWin;
+    j["draw"] = netAndStuff->numBaselineDraw;
+    j["win0_b"] = netAndStuff->numBaselineWinBlack;
+    j["draw0_b"] = netAndStuff->numBaselineDrawBlack;
+    j["lose0_b"] = netAndStuff->numGamesTallied - netAndStuff->numBaselineWin - netAndStuff->numBaselineDraw - (netAndStuff->numCandidateWin - netAndStuff->numCandidateWinBlack);
+    // bot 1 can be calculated by this, so no need to store
+
+    string jsonOutPath = sgfOutputDir + "/" + modelNameCandidate + "/" + getCurrentTimeString() + ".json";
+    
+    std::ofstream file(jsonOutPath);
+    if(file.is_open()) {
+      file << j.dump(4);
+      file.close();
+    } else {
+      std::cerr << "failed to write json file:" << jsonOutPath << std::endl;
+    }
 
     lock.unlock();
     logger.write("Data write loop cleaned up and terminating for " + modelNameBaseline + " vs " + modelNameCandidate);
@@ -381,7 +486,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
   auto loadLatestNeuralNet =
     [&testModelsDir,&rejectedModelsDir,&acceptedModelsDir,&sgfOutputDir,&logger,&cfg,numGameThreads,noAutoRejectOldModels,
      requiredCandidateWinProp,
-     minBoardXSizeUsed,maxBoardXSizeUsed,minBoardYSizeUsed,maxBoardYSizeUsed]() -> NetAndStuff* {
+     minBoardXSizeUsed,maxBoardXSizeUsed,minBoardYSizeUsed,maxBoardYSizeUsed,&gameRunner]() -> NetAndStuff* {
     Rand rand;
 
     string testModelName;
@@ -456,7 +561,8 @@ int MainCmds::gatekeeper(const vector<string>& args) {
       acceptedNNEval,
       testNNEval,
       requiredCandidateWinProp,
-      sgfOut
+      sgfOut,
+      gameRunner
     );
 
     //Check for unused config keys
@@ -470,13 +576,15 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     &logger,
     &netAndStuffMutex,
     &netAndStuff,
-    &gameSeedBase
+    &gameSeedBase,
+    &logThreadsEvery
   ](int threadIdx) {
     std::unique_lock<std::mutex> lock(netAndStuffMutex);
     netAndStuff->registerGameThread();
-    logger.write("Game loop thread " + Global::intToString(threadIdx) + " starting game testing candidate: " + netAndStuff->modelNameCandidate);
+    if(threadIdx % logThreadsEvery == 0)
+      logger.write("Game loop thread " + Global::intToString(threadIdx) + " starting game testing candidate: " + netAndStuff->modelNameCandidate);
 
-    auto shouldStopFunc = [&netAndStuff]() {
+    auto shouldStopFunc = [&netAndStuff]() noexcept {
       return shouldStop.load() || netAndStuff->terminated.load();
     };
     WaitableFlag* shouldPause = nullptr;
@@ -489,14 +597,15 @@ int MainCmds::gatekeeper(const vector<string>& args) {
       lock.unlock();
 
       FinishedGameData* gameData = NULL;
+      InitialPosition* initialPosition = NULL;
 
       MatchPairer::BotSpec botSpecB;
       MatchPairer::BotSpec botSpecW;
-      if(netAndStuff->matchPairer->getMatchup(botSpecB, botSpecW, logger)) {
-        string seed = gameSeedBase + ":" + Global::uint64ToHexString(thisLoopSeedRand.nextUInt64());
+      string seed = gameSeedBase + ":" + Global::uint64ToHexString(thisLoopSeedRand.nextUInt64());
+      if(netAndStuff->matchPairer->getMatchup(botSpecB, botSpecW, logger, seed, &initialPosition)) {
         gameData = gameRunner->runGame(
           seed, botSpecB, botSpecW, NULL, /* NULL,*/ logger,
-          shouldStopFunc, shouldPause, nullptr, nullptr, nullptr
+          shouldStopFunc, shouldPause, nullptr, nullptr, nullptr, initialPosition
         );
       }
 
@@ -513,7 +622,8 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     netAndStuff->unregisterGameThread();
 
     lock.unlock();
-    logger.write("Game loop thread " + Global::intToString(threadIdx) + " terminating");
+    if(threadIdx % logThreadsEvery == 0)
+      logger.write("Game loop thread " + Global::intToString(threadIdx) + " terminating");
   };
   auto gameLoopProtected = [&logger,&gameLoop](int threadIdx) {
     Logger::logThreadUncaught("game loop", &logger, [&](){ gameLoop(threadIdx); });
@@ -586,7 +696,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     if(netAndStuff->numCandidateWinPoints + 1e-10 < requiredCandidateWinProp * netAndStuff->numGamesTallied) {
       logger.write(
         Global::strprintf(
-          "Candidate lost match, score %.3f to %.3f in %d games, rejecting candidate %s",
+          "Candidate lost match, score %.1f to %.1f in %d games, rejecting candidate %s",
           netAndStuff->numCandidateWinPoints,
           netAndStuff->numBaselineWinPoints,
           netAndStuff->numGamesTallied,
@@ -606,7 +716,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
     else {
       logger.write(
         Global::strprintf(
-          "Candidate won match, score %.3f to %.3f in %d games, accepting candidate %s",
+          "Candidate won match, score %.1f to %.1f in %d games, accepting candidate %s",
           netAndStuff->numCandidateWinPoints,
           netAndStuff->numBaselineWinPoints,
           netAndStuff->numGamesTallied,
@@ -626,6 +736,23 @@ int MainCmds::gatekeeper(const vector<string>& args) {
       }
       std::this_thread::sleep_for(std::chrono::seconds(2));
 
+      if(copyAcceptedFile != "") {
+        ifstream in;
+        FileUtils::open(in, netAndStuff->testModelFile, ifstream::in | ifstream::binary);
+        if(in.is_open()) {
+          ofstream out;
+          FileUtils::open(out, copyAcceptedFile, ofstream::out | ofstream::binary | ofstream::trunc);
+          if(out.is_open()) {
+            out << in.rdbuf();
+            out << std::flush;
+            out.close();
+            logger.write("Copy model " + netAndStuff->testModelFile + " to " + copyAcceptedFile);
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+          }
+          in.close();
+        }
+      }
+
       moveModel(
         netAndStuff->modelNameCandidate,
         netAndStuff->testModelFile,
@@ -634,6 +761,7 @@ int MainCmds::gatekeeper(const vector<string>& args) {
         acceptedModelsDir,
         logger
       );
+      // 
     }
 
     //Clean up
@@ -650,6 +778,10 @@ int MainCmds::gatekeeper(const vector<string>& args) {
 
   if(sigReceived.load())
     logger.write("Exited cleanly after signal");
+
   logger.write("All cleaned up, quitting");
+  if(!logger.isLoggingToStdout())
+    cout << "All cleaned up, quitting" << endl;
+
   return 0;
 }

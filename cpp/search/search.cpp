@@ -74,9 +74,7 @@ Search::Search(SearchParams params, NNEvaluator* nnEval, NNEvaluator* humanEval,
    rootHistory(),
    rootGraphHash(),
    rootHintLoc(Board::NULL_LOC),
-   avoidMoveUntilByLocBlack(),
-   avoidMoveUntilByLocWhite(),
-   avoidMoveUntilRescaleRoot(false),
+   avoidMoveUntilByLocBlack(),avoidMoveUntilByLocWhite(),avoidMoveUntilRescaleRoot(false),
    rootSymmetries(),
    rootPruneOnlySymmetries(),
    mirroringPla(C_EMPTY),
@@ -132,7 +130,7 @@ Search::Search(SearchParams params, NNEvaluator* nnEval, NNEvaluator* humanEval,
   nodeTable = new SearchNodeTable(params.nodeTableShardsPowerOfTwo);
   mutexPool = new MutexPool(nodeTable->mutexPool->getNumMutexes());
 
-  rootHistory.clear(rootBoard, rootPla, Rules() /*, 0*/);
+  rootHistory.clear(rootBoard, rootPla, Rules());
 }
 
 Search::~Search() {
@@ -182,7 +180,7 @@ void Search::setPlayerAndClearHistory(Player pla) {
   Rules rules = rootHistory.rules;
   //Preserve this value even when we get multiple moves in a row by some player
   //bool assumeMultipleStartingBlackMovesAreHandicap = rootHistory.assumeMultipleStartingBlackMovesAreHandicap;
-  rootHistory.clear(rootBoard, rootPla, rules /*, rootHistory.encorePhase*/);
+  rootHistory.clear(rootBoard, rootPla, rules);
 
 
   //If changing the player alone, don't clear these, leave the user's setting - the user may have tried
@@ -285,17 +283,7 @@ void Search::clearSearch() {
 }
 
 bool Search::isLegalTolerant(Loc moveLoc, Player movePla) const {
-  //Tolerate sgf files or GTP reporting suicide moves, even if somehow the rules are set to disallow them.
-  bool multiStoneSuicideLegal = true;
-
-  //If we somehow have the same player making multiple moves in a row (possible in GTP or an sgf file),
-  if(movePla != rootPla) {
-    Board copy = rootBoard;
-    return copy.isLegal(moveLoc, movePla);
-  }
-  else {
-    return rootHistory.isLegalTolerant(rootBoard,moveLoc,movePla);
-  }
+  return rootHistory.isLegalTolerant(rootBoard, moveLoc, movePla);
 }
 
 bool Search::isLegalStrict(Loc moveLoc, Player movePla) const {
@@ -613,8 +601,7 @@ void Search::beginSearch(bool pondering) {
   computeRootValues();
 
   //Prepare value bias table if we need it
-  if(
-    searchParams.subtreeValueBiasFactor != 0 && subtreeValueBiasTable == NULL)
+  if(searchParams.subtreeValueBiasFactor != 0 && subtreeValueBiasTable == NULL)
     subtreeValueBiasTable = new SubtreeValueBiasTable(searchParams.subtreeValueBiasTableNumShards);
 
   //Refresh pattern bonuses if needed
@@ -739,7 +726,7 @@ void Search::beginSearch(bool pondering) {
 
     //Recursively update all stats in the tree if we have dynamic score values
     //And also to clear out lastResponseBiasDeltaSum and lastResponseBiasWeight
-    if(/*searchParams.dynamicScoreUtilityFactor != 0 ||*/ searchParams.subtreeValueBiasFactor != 0 || patternBonusTable != NULL) {
+    if(searchParams.subtreeValueBiasFactor != 0 || patternBonusTable != NULL) {
       recursivelyRecomputeStats(node);
       if(anyFiltered) {
         //Recursive stats recomputation resulted in us marking all nodes we have. Anything filtered is old now, delete it.
@@ -884,7 +871,7 @@ void Search::deleteAllOldOrAllNewTableNodesAndSubtreeValueBiasMulithreaded(bool 
 void Search::deleteAllTableNodesMulithreaded() {
   int numAdditionalThreads = numAdditionalThreadsToUseForTasks();
   assert(numAdditionalThreads >= 0);
-  std::function<void(int)> g = [&](int threadIdx) {
+  std::function<void(int)> g = [&](int threadIdx) noexcept {
     size_t idx0 = (size_t)((uint64_t)(threadIdx) * nodeTable->entries.size() / (numAdditionalThreads+1));
     size_t idx1 = (size_t)((uint64_t)(threadIdx+1) * nodeTable->entries.size() / (numAdditionalThreads+1));
     for(size_t i = idx0; i<idx1; i++) {
@@ -961,8 +948,7 @@ void Search::recursivelyRecomputeStats(SearchNode& n) {
       }
       else {
         double resultUtility = getResultUtility(winLossValueAvg, noResultValueAvg);
-        //double scoreUtility = getScoreUtility(scoreMeanAvg, scoreMeanSqAvg);
-        double newUtilityAvg = resultUtility /*+ scoreUtility*/;
+        double newUtilityAvg = resultUtility;
         newUtilityAvg += getPatternBonus(node->patternBonusHash,getOpp(node->nextPla));
         double newUtilitySqAvg = newUtilityAvg * newUtilityAvg;
 
@@ -1007,8 +993,8 @@ bool Search::runSinglePlayout(SearchThread& thread, double upperBoundVisitsLeft)
   //Store this value, used for futile-visit pruning this thread's root children selections.
   thread.upperBoundVisitsLeft = upperBoundVisitsLeft;
 
-  //Prep this value, playoutDescend will set it to true if we do have a playout
-  thread.shouldCountPlayout = false;
+  // Prep this value, playoutDescend will set it to false if the playout shouldn't count
+  thread.shouldCountPlayout = true;
 
   bool finishedPlayout = playoutDescend(thread,*rootNode,true);
   (void)finishedPlayout;
@@ -1050,7 +1036,6 @@ bool Search::playoutDescend(
       double noResultValue = 1.0;
       double weight = (searchParams.useUncertainty && nnEvaluator->supportsShorttermError()) ? searchParams.uncertaintyMaxWeight : 1.0;
       addLeafValue(node, winLossValue, noResultValue, weight, true, false);
-      thread.shouldCountPlayout = true;
       return true;
     }
     else {
@@ -1059,7 +1044,6 @@ bool Search::playoutDescend(
       double noResultValue = thread.history.winner == C_EMPTY? 1.0 : 0.0;
       double weight = (searchParams.useUncertainty && nnEvaluator->supportsShorttermError()) ? searchParams.uncertaintyMaxWeight : 1.0;
       addLeafValue(node, winLossValue, noResultValue, weight, true, false);
-      thread.shouldCountPlayout = true;
       return true;
     }
   }
@@ -1071,26 +1055,29 @@ bool Search::playoutDescend(
       bool suc = initNodeNNOutput(thread,node,isRoot,false,false);
       //Leave the node as unevaluated - only the thread that first actually set the nnOutput into the node
       //gets to update the state, to avoid races where we update the state while the node stats aren't updated yet.
-      if(!suc)
+      if(!suc) {
+        thread.shouldCountPlayout = false;
         return false;
+      }
     }
 
     bool suc = node.state.compare_exchange_strong(nodeState, SearchNode::STATE_EVALUATING, std::memory_order_seq_cst);
     if(!suc) {
       //Presumably someone else got there first.
       //Just give up on this playout and try again from the start.
+      thread.shouldCountPlayout = false;
       return false;
     }
     else {
       //Perform the nn evaluation and finish!
       node.initializeChildren();
       node.state.store(SearchNode::STATE_EXPANDED0, std::memory_order_seq_cst);
-      thread.shouldCountPlayout = true;
       return true;
     }
   }
   else if(nodeState == SearchNode::STATE_EVALUATING) {
     //Just give up on this playout and try again from the start.
+    thread.shouldCountPlayout = false;
     return false;
   }
 
@@ -1136,7 +1123,6 @@ bool Search::playoutDescend(
       //Return TRUE though, so that the parent path we traversed increments its edge visits.
       //We want the search to continue as best it can, so we increment visits so search will still make progress
       //even if this keeps happening in some really bad transposition or something.
-      thread.shouldCountPlayout = true;
       return true;
     }
 
@@ -1144,7 +1130,6 @@ bool Search::playoutDescend(
       //This might happen if all moves have been forbidden. The node will just get stuck counting visits without expanding
       //and we won't do any search.
       addCurrentNNOutputAsLeafValue(node,false);
-      thread.shouldCountPlayout = true;
       return true;
     }
 
@@ -1165,7 +1150,13 @@ bool Search::playoutDescend(
       assert(childrenCapacity > bestChildIdx);
       (void)childrenCapacity;
 
-      //Make the move! We need to make the move before we create the node so we can see the new state and get the right graphHash.
+      // We can only test this before we make the move, so do it now.
+      //const bool canForceNonTerminalDueToFriendlyPass =
+      //  bestChildMoveLoc == Board::PASS_LOC &&
+      //  thread.history.shouldSuppressEndGameFromFriendlyPass(thread.board, thread.pla);
+
+      // Make the move! We need to make the move before we create the node so we can see the new state and get the right
+      // graphHash.
       thread.history.makeBoardMoveAssumeLegal(thread.board,bestChildMoveLoc,thread.pla);
       thread.pla = getOpp(thread.pla);
       if(searchParams.useGraphSearch)
@@ -1173,7 +1164,12 @@ bool Search::playoutDescend(
 
       //If conservative pass, passing from the root is always non-terminal
       //If friendly passing rules, we might also be non-terminal
-      const bool forceNonTerminal = false;  // bestChildMoveLoc == Board::PASS_LOC && ((searchParams.conservativePass && (&node == rootNode)) || forceNonTerminalDueToFriendlyPass);
+      const bool forceNonTerminal = false;
+          /* bestChildMoveLoc == Board::PASS_LOC && thread.history.isGameFinished &&
+        (
+        (searchParams.conservativePass && (&node == rootNode)) ||
+        canForceNonTerminalDueToFriendlyPass);*/
+
       child = allocateOrFindNode(thread, thread.pla, bestChildMoveLoc, forceNonTerminal, thread.graphHash);
       child->virtualLosses.fetch_add(1,std::memory_order_release);
 
@@ -1193,17 +1189,17 @@ bool Search::playoutDescend(
           //Even if the node was newly allocated, no need to delete the node, it will get cleaned up next time we mark and sweep the node table later.
           //Clean up virtual losses in case the node is a transposition and is being used.
           child->virtualLosses.fetch_add(-1,std::memory_order_release);
+          thread.shouldCountPlayout = false;
           return false;
         }
       }
 
       //If edge visits is too much smaller than the child's visits, we can avoid descending.
       //Instead just add edge visits and treat that as a visit.
-      //If we're not counting edge visits, then we're deliberately trying to add child visits beyond edge visits, skip
+      //If we're not counting edge visits, then we're deliberately trying to add child visits beyond edge visits, don't return early
       if(countEdgeVisit && maybeCatchUpEdgeVisits(thread, node, child, nodeState, bestChildIdx)) {
         updateStatsAfterPlayout(node,thread,isRoot);
         child->virtualLosses.fetch_add(-1,std::memory_order_release);
-        thread.shouldCountPlayout = true;
         return true;
       }
     }
@@ -1217,11 +1213,14 @@ bool Search::playoutDescend(
 
       //If edge visits is too much smaller than the child's visits, we can avoid descending.
       //Instead just add edge visits and treat that as a visit.
-      //If we're not counting edge visits, then we're deliberately trying to add child visits beyond edge visits, skip
+      //If we're not counting edge visits, then we're deliberately trying to add child visits beyond edge visits, don't return early
       if(countEdgeVisit && maybeCatchUpEdgeVisits(thread, node, child, nodeState, bestChildIdx)) {
         updateStatsAfterPlayout(node,thread,isRoot);
-        child->virtualLosses.fetch_add(-1,std::memory_order_release);
-        thread.shouldCountPlayout = true;
+        // Regardless of whether we count an edge visit or not here, we
+        // leave thread.shouldCountPlayout as true so that if we repeatedly are stuck searching a cycle
+        // we don't go forever, and eventually hit a visits/playouts limit.
+
+        child->virtualLosses.fetch_add(-1, std::memory_order_release);
         return true;
       }
 

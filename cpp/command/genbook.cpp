@@ -639,9 +639,8 @@ int MainCmds::genbook(const vector<string>& args) {
     // cout << "Done shallowAvg " << timer.getSeconds() << endl;
 
     // Use full symmetry for the policy for nodes we record for the book
-    //bool includeOwnerMap = false;
     // cout << "Calling full nn " << timer.getSeconds() << endl;
-    std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), /*includeOwnerMap,*/ search->nnEvaluator);
+    std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), search->nnEvaluator);
     float policyProbs[NNPos::MAX_NN_POLICY_SIZE];
 #ifdef QUANTIZED_OUTPUT
     for(int i = 0; i < NNPos::MAX_NN_POLICY_SIZE; i++) {
@@ -804,8 +803,7 @@ int MainCmds::genbook(const vector<string>& args) {
 
         // To avoid oddities in positions where the rules mismatch, expand every move with a noticeably higher raw policy
         // Average all 8 symmetries
-        const bool includeOwnerMap = false;
-        std::shared_ptr<NNOutput> result = PlayUtils::getFullSymmetryNNOutput(board, hist, pla, /*includeOwnerMap,*/ nnEval);
+        std::shared_ptr<NNOutput> result = PlayUtils::getFullSymmetryNNOutput(board, hist, pla, nnEval);
 #ifdef QUANTIZED_OUTPUT
         float moveLocPolicy = result->getPolicyProb(search->getPos(moveLoc));
 #else
@@ -924,7 +922,6 @@ int MainCmds::genbook(const vector<string>& args) {
       return false;
 
     // Use full symmetry for the policy for nodes we record for the book
-    bool includeOwnerMap = false;
     std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), search->nnEvaluator);
 #ifndef QUANTIZED_OUTPUT
     const float* policyProbs = fullSymNNOutput->policyProbs;
@@ -1679,7 +1676,7 @@ int MainCmds::booktoposes(const vector<string>& args) {
     TCLAP::ValueArg<int> includeDepthArg("","include-depth","Include positions up to this depth",false,-1,"DEPTH");
     TCLAP::ValueArg<double> includeVisitsArg("","include-visits","Include positions this many visits or more",false,1e300,"VISITS");
     TCLAP::ValueArg<int> maxDepthArg("","max-depth","Only include positions up to this depth",false,100000000,"DEPTH");
-    TCLAP::ValueArg<double> minVisitsArg("","max-visits","Only include positions with this many visits or more",false,-1.0,"VISITS");
+    TCLAP::ValueArg<double> minVisitsArg("","min-visits","Only include positions with this many visits or more",false,-1.0,"VISITS");
     TCLAP::SwitchArg enableHintsArg("","enable-hints","Hint the top book move");
     TCLAP::ValueArg<double> constantWeightArg("","constant-weight","How much weight to give each position as a fixed baseline",false,0.0,"FLOAT");
     TCLAP::ValueArg<double> depthWeightArg("","depth-weight","How much extra weight to give based on depth",false,0.0,"FLOAT");
@@ -1891,9 +1888,8 @@ int MainCmds::booktoposes(const vector<string>& args) {
         nnInputParams.symmetry = sym;
         NNResultBuf buf;
         bool skipCache = true; //Always ignore cache so that we use the desired symmetry
-        bool includeOwnerMap = false;
         if(policySurpriseWeight > 0 || valueSurpriseWeight > 0)
-          nnEval->evaluate(board, hist, pla, nnInputParams, buf, skipCache /*, includeOwnerMap*/);
+          nnEval->evaluate(board, hist, pla, nnInputParams, buf, skipCache);
 
         if(policySurpriseWeight > 0) {
           if(bestMove != Board::NULL_LOC) {

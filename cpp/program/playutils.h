@@ -42,7 +42,7 @@ namespace PlayUtils {
     Rand& gameRand, 
     double avgPolicyInitMoveNum,
     double temperature,
-    bool is_gauss = false
+    double gauss_max = 0.0
   );
 
 

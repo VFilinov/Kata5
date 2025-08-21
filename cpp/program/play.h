@@ -113,6 +113,7 @@ class GameInitializer {
   std::vector<std::string> allowedVCNRuleStrs;
   std::vector<int> allowedVCNRules;
   std::vector<bool> allowedFirstPassWinRules;
+  double moveLimitProb;
 
   std::vector<std::pair<int,int>> allowedBSizes;
   std::vector<double> allowedBSizeRelProbs;

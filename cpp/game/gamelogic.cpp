@@ -302,8 +302,8 @@ Color GameLogic::checkWinnerAfterPlayed(
   }
 
   // before win
-  if(checkAlreadyWin(board, hist, pla, loc)) // VF
-    return pla;
+  //if(checkAlreadyWin(board, hist, pla, loc)) // VF
+  //  return pla;
   
   if(getMovePriorityAssumeLegal(board, hist, pla, loc) == MP_SUDDEN_WIN)
     return pla;
@@ -318,9 +318,6 @@ Color GameLogic::checkWinnerAfterPlayed(
       return getOpp(VCside);
     }
   }
-
-  //if(board.movenum >= board.x_size * board.y_size) // VF
-    //return C_EMPTY;
 
   return C_WALL;
 }

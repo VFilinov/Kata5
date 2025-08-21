@@ -799,7 +799,7 @@ struct GomEngine {
     bool& maybeStartPondering) {
     bool onMoveWasCalled = false;
     Loc genmoveMoveLoc = Board::NULL_LOC;
-    auto onMove = [&genmoveMoveLoc, &onMoveWasCalled, this](Loc moveLoc, int searchId, Search* search) {
+    auto onMove = [&genmoveMoveLoc, &onMoveWasCalled, this](Loc moveLoc, int searchId, Search* search) noexcept {
       (void)searchId;
       (void)search;
       onMoveWasCalled = true;
@@ -811,8 +811,7 @@ struct GomEngine {
     string response;
     bool responseIsError = false;
     Loc moveLocToPlay = Board::NULL_LOC;
-    handleGenMoveResult(
-      pla, bot->getSearchStopAndWait(), logger, gargs, args, genmoveMoveLoc, response, responseIsError, moveLocToPlay);
+    handleGenMoveResult(pla, bot->getSearchStopAndWait(), logger, gargs, args, genmoveMoveLoc, response, responseIsError, moveLocToPlay);
     printGTPResponse(response, responseIsError);
     if(moveLocToPlay != Board::NULL_LOC && playChosenMove) {
       bool suc = bot->makeMove(moveLocToPlay, pla);
@@ -823,34 +822,6 @@ struct GomEngine {
 
       maybeStartPondering = true;
     }
-  }
-
-  void genMoveCancellable(
-    Player pla,
-    Logger& logger,
-    const GenmoveArgs& gargs,
-    const AnalyzeArgs& args,
-    std::function<void(const string&, bool)> printGTPResponse) {
-    // Make sure to capture things by value unless they're long-lived, since the callback needs to survive past the
-    // current scope.
-    auto onMove = [pla, &logger, gargs, args, printGTPResponse, this](Loc moveLoc, int searchId, Search* search) {
-      string response;
-      bool responseIsError = false;
-      Loc moveLocToPlay = Board::NULL_LOC;
-
-      // Search invalidated before completion
-      if(searchId != genmoveExpectedId.load()) {
-        if(args.analyzing)
-          response = "play cancelled";
-        else
-          response = "cancelled";
-        printGTPResponse(response, responseIsError);
-        return;
-      }
-      handleGenMoveResult(pla, search, logger, gargs, args, moveLoc, response, responseIsError, moveLocToPlay);
-      printGTPResponse(response, responseIsError);
-    };
-    launchGenMove(pla, gargs, args, onMove);
   }
 
   void launchGenMove(Player pla, GenmoveArgs gargs, AnalyzeArgs args, std::function<void(Loc, int, Search*)> onMove) {
@@ -924,11 +895,10 @@ struct GomEngine {
       responseIsError = true;
       response = "genmove returned null location or illegal move";
       ostringstream sout;
-      sout << "genmove null location or illegal move!?!"
-           << "\n";
-      sout << search->getRootBoard() << "\n";
-      sout << "Pla: " << PlayerIO::playerToString(pla) << "\n";
-      sout << "MoveLoc: " << Location::toString(moveLoc, search->getRootBoard()) << "\n";
+      sout << "genmove null location or illegal move!?!"  << endl;
+      sout << search->getRootBoard() << endl;
+      sout << "Pla: " << PlayerIO::playerToString(pla) << endl;
+      sout << "MoveLoc: " << Location::toString(moveLoc, search->getRootBoard()) << endl;
       logger.write(sout.str());
       genmoveTimeSum += genmoveTimer.getSeconds();
       return;
@@ -974,28 +944,27 @@ struct GomEngine {
     genmoveTimeSum += timeTaken;
 
     // Chatting and logging ----------------------------
-
     const SearchParams& params = search->searchParams;
 
-    if(gargs.ogsChatToStderr) {
-      int64_t visits = search->getRootVisits();
-      double winrate = 0.5 * (1.0 + (values.winValue - values.lossValue));
-      // Print winrate from desired perspective
-      if(perspective == P_BLACK || (perspective != P_BLACK && perspective != P_WHITE && pla == P_BLACK)) {
-        winrate = 1.0 - winrate;
-      }
-      cerr << "MALKOVICH:"
-           << "Visits " << visits << " Winrate " << Global::strprintf("%.2f%%", winrate * 100.0);
-      if(params.playoutDoublingAdvantage != 0.0) {
-        cerr << Global::strprintf(
-          " (PDA %.2f)",
-          search->getRootPla() == getOpp(params.playoutDoublingAdvantagePla) ? -params.playoutDoublingAdvantage
-                                                                             : params.playoutDoublingAdvantage);
-      }
-      cerr << " PV ";
-      search->printPVForMove(cerr, search->rootNode, moveLoc, analysisPVLen);
-      cerr << endl;
+    int64_t visits = bot->getSearch()->getRootVisits();
+    double winrate = 0.5 * (1.0 + (values.winValue - values.lossValue));
+    // Print winrate from desired perspective
+    if(perspective == P_BLACK || (perspective != P_BLACK && perspective != P_WHITE && pla == P_BLACK)) {
+      winrate = 1.0 - winrate;
     }
+    cout << "MESSAGE "
+         << "Visits " << visits << " Winrate " << Global::strprintf("%.2f%%", winrate * 100.0) << " Drawrate "
+         << Global::strprintf("%.2f%%", values.noResultValue * 100.0) << " Time "
+         << Global::strprintf("%.3f", timeTaken);
+    if(params.playoutDoublingAdvantage != 0.0) {
+      cout << Global::strprintf(
+        " (PDA %.2f)",
+        bot->getSearch()->getRootPla() == getOpp(params.playoutDoublingAdvantagePla) ? -params.playoutDoublingAdvantage
+                                                                                     : params.playoutDoublingAdvantage);
+    }
+    cout << " PV ";
+    bot->getSearch()->printPVForMove(cout, bot->getSearch()->rootNode, moveLoc, analysisPVLen);
+    cout << endl;
 
     if(gargs.logSearchInfo) {
       ostringstream sout;
@@ -1003,17 +972,17 @@ struct GomEngine {
         sout, search, nnEval, moveLoc, timeTaken, perspective, gargs.logSearchInfoForChosenMove);
       logger.write(sout.str());
     }
+
     if(gargs.debug) {
       PlayUtils::printGenmoveLog(
         cerr, search, nnEval, moveLoc, timeTaken, perspective, gargs.logSearchInfoForChosenMove);
     }
 
     // Actual reporting of chosen move---------------------
-    if(resigned)
-      response = "resign";
-    else
-      response = Location::toString(moveLoc, search->getRootBoard());
-
+    int x = Location::getX(moveLoc, bot->getRootBoard().x_size);
+    int y = Location::getY(moveLoc, bot->getRootBoard().x_size);
+    response = to_string(x) + "," + to_string(y);
+    
     if(autoAvoidPatterns) {
       // Auto pattern expects moveless records using hintloc to contain the move.
       Sgf::PositionSample posSample;
@@ -1030,9 +999,11 @@ struct GomEngine {
       moveLocToPlay = moveLoc;
     }
 
+    /*
     if(args.analyzing) {
       response = "play " + response;
     }
+    */
 
     return;
   }
@@ -1439,8 +1410,8 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
       "will not be used until it is set in the config or at runtime via kata-set-param.");
   }
 
-  cerr << "MESSAGE Engine Rule: " << initialRules.toString() << endl;
-  cerr << "MESSAGE Board Size: " << Board::DEFAULT_LEN << endl;
+  //cerr << "MESSAGE Engine Rule: " << initialRules.toString() << endl;
+  //cerr << "MESSAGE Board Size: " << Board::DEFAULT_LEN << endl;
   cerr << "MESSAGE Loaded config " << cfg.getFileName() << endl;
   cerr << "MESSAGE Loaded model " << nnModelFile << endl;
   if(humanModelFile != "")
@@ -1452,20 +1423,13 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
 
   bool currentlyGenmoving = false;
   bool currentlyAnalyzing = false;
-  map<string, string> short_params;
-  short_params["wrn"] = "analysisWideRootNoise";
-  short_params["rpt"] = "rootPolicyTemperature";
-  short_params["pda"] = "playoutDoublingAdvantage";
-  short_params["mm"] = "maxmoves";
 
   string line;
-  bool no_readline = false;
 
   //istringstream input("START 15\nBEGIN\n");
   //while(getline(input, line)) {
 
   while(getline(cin, line)) {
-    no_readline = false;
     // Parse command, extracting out the command itself, the arguments, and any GTP id number for the command.
     string command;
     vector<string> pieces;
@@ -1526,49 +1490,23 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
 
     auto printGTPResponse = [hasId, id, &logger, logAllGTPCommunication](const string& response, bool responseIsError) {
       string postProcessed = response;
-      if(hasId)
-        postProcessed = Global::intToString(id) + " " + postProcessed;
-      else
-        postProcessed = " " + postProcessed;
+      //if(hasId)
+      //  postProcessed = Global::intToString(id) + " " + postProcessed;
+      //else
+      //  postProcessed = " " + postProcessed;
 
       if(responseIsError)
-        postProcessed = "?" + postProcessed;
-      else
-        postProcessed = "=" + postProcessed;
+        postProcessed = "ERROR " + postProcessed;
 
       cout << postProcessed << endl;
-      cout << endl;
 
       if(logAllGTPCommunication)
         logger.write(postProcessed);
     };
-    auto printGTPResponseHeader = [hasId, id, &logger, logAllGTPCommunication]() {
-      if(hasId) {
-        string s = "=" + Global::intToString(id);
-        cout << s << endl;
-        if(logAllGTPCommunication)
-          logger.write(s);
-      } else {
-        cout << "=" << endl;
-        if(logAllGTPCommunication)
-          logger.write("=");
-      }
-    };
 
-    auto printGTPResponseNoHeader = [hasId, id, &logger, logAllGTPCommunication](
-                                      const string& response, bool responseIsError) {
-      // Postprocessing of response in the case where we already printed the "=" and a newline ahead of time via
-      // printGTPResponseHeader.
-      if(!responseIsError) {
-        cout << response << endl;
-        cout << endl;
-      } else {
-        cout << endl;
-        if(!logger.isLoggingToStderr())
-          cerr << response << endl;
-      }
-      if(logAllGTPCommunication)
-        logger.write(response);
+    auto getCoordinates = [&](const string coorditates, char delim, int& x, int& y) {
+      vector<string> subpieces = Global::split(coorditates, delim);
+      return (subpieces.size() == 2 && Global::tryStringToInt(subpieces[0], x) && Global::tryStringToInt(subpieces[1], y));
     };
 
     bool responseIsError = false;
@@ -1590,23 +1528,17 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
       int newXSize = 0;
       int newYSize = 0;
       bool suc = false;
-
-      if(pieces.size() == 1 && command == "START") {
-        if(contains(pieces[0],':')) {
-          vector<string> subpieces = Global::split(pieces[0],':');
-          if(subpieces.size() == 2 && Global::tryStringToInt(subpieces[0], newXSize) && Global::tryStringToInt(subpieces[1], newYSize))
+      if(pieces.size() == 1) {
+        if(command == "START") {
+          if(Global::tryStringToInt(pieces[0], newXSize)) {
+            newYSize = newXSize;
+            suc = true;
+          }
+        } else if(command == "RECTSTART") {
+          if(getCoordinates(pieces[0], ',', newXSize, newYSize))
             suc = true;
         }
-        else {
-            if(Global::tryStringToInt(pieces[0], newXSize)) {
-              newYSize = newXSize;
-              suc = true;
-          }
-        }
-      } else if(pieces.size() == 2 && command == "RECTSTART") {
-        if(Global::tryStringToInt(pieces[0], newXSize) && Global::tryStringToInt(pieces[1], newYSize)) 
-          suc = true;
-      }
+      } 
 
       if(!suc) {
         responseIsError = true;
@@ -1878,13 +1810,24 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
           }
         }
       }
-    }
-    else if(command == "PLAY") {
+    } else if(command == "TAKEBACK") {
+      int x, y;
+      if(pieces.size() != 1) {
+        responseIsError = true;
+        response = "Expected one argument for takeback but got '" + Global::concat(pieces, " ") + "'";
+      } else if(getCoordinates(pieces[0], ',', x, y)) {
+        engine->undo();
+        response = "OK";
+      } else {
+        responseIsError = true;
+        response = "Invalid coordinates for takeback '" + pieces[0] + "'";
+      }
+    } /* else if(command == "PLAY") {
       Player pla;
       Loc loc;
-      if(pieces.size() != 2) {
+      if(pieces.size() != 1) {
         responseIsError = true;
-        response = "Expected two arguments for play but got '" + Global::concat(pieces," ") + "'";
+        response = "Expected one argument for play but got '" + Global::concat(pieces," ") + "'";
       }
       else if(!PlayerIO::tryParsePlayer(pieces[0],pla)) {
         responseIsError = true;
@@ -1902,7 +1845,7 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
         }
         maybeStartPondering = true;
       }
-    }
+    }*/
     else if(command == "BEGIN") {
       const Board& b = engine->bot->getRootBoard();
       if(b.numStonesOnBoard() != 0) {
@@ -1932,21 +1875,24 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
       const Board& b = engine->bot->getRootBoard();
       Player nextPla = b.numStonesOnBoard() % 2 ? P_WHITE : P_BLACK;
       Loc loc;
-      if (pieces.size() != 2) {
+      if (pieces.size() != 1) {
         responseIsError = true;
-        response = "Expected 2 arguments for TURN but got '" + Global::concat(pieces, " ") + "'";
+        response = "Expected one argument for turn but got '" + Global::concat(pieces, " ") + "'";
       }
       else {
-        int x = stoi(pieces[0]), y = stoi(pieces[1]);
-        loc = Location::getLoc(x, y, engine->bot->getRootBoard().x_size);
-        bool suc = engine->play(loc, nextPla);
-        if (!suc) {
+        int x, y;
+        if(getCoordinates(pieces[0], ',', x, y)) {
+          loc = Location::getLoc(x, y, engine->bot->getRootBoard().x_size);
+          if(!engine->play(loc, nextPla)) {
+            responseIsError = true;
+            response = "illegal move for turn '" + pieces[0] + "'";
+          }
+        } else {
           responseIsError = true;
-          response = "illegal move";
+          response = "Invalid coordinates for turn '" + pieces[0] + "'";
         }
       }
-      if (!responseIsError)
-      {
+      if (!responseIsError)  {
         bool debug = false;
         bool playChosenMove = true;
         nextPla = getOpp(nextPla);
@@ -1987,11 +1933,11 @@ int MainCmds::gomprotocol(const std::vector<std::string>& args) {
       response = "unknown command";
     }
 
-    if(responseIsError)
-      response = "ERROR " + response;
-
     if(!suppressResponse)
       printGTPResponse(response, responseIsError);
+
+    if(logAllGTPCommunication)
+      logger.write(response);
 
     if(shouldQuitAfterResponse)
       break;

@@ -1,0 +1,299 @@
+/home/vfilinov/source/KataGo/cpp/program/play.cpp:2127:13: warning: ‘void replayGameUpToMove(const FinishedGameData*, int, Rules, Board&, BoardHistory&, Player&)’ defined but not used [-Wunused-function]
+ 2127 | static void replayGameUpToMove(const FinishedGameData* finishedGameData, int moveIdx, Rules rules, Board& board, BoardHistory& hist, Player& pla) {
+      |             ^~~~~~~~~~~~~~~~~~
+In file included from /home/vfilinov/source/KataGo/cpp/program/play.cpp:7:
+/home/vfilinov/source/KataGo/cpp/program/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/program/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[75/94] Building CXX object CMakeFiles/katago.dir/command/commandline.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/commandline.cpp:7:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[77/94] Building CXX object CMakeFiles/katago.dir/command/benchmark.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/benchmark.cpp:7:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[78/94] Building CXX object CMakeFiles/katago.dir/command/contribute.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/contribute.cpp:16:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[79/94] Building CXX object CMakeFiles/katago.dir/command/evalsgf.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/evalsgf.cpp:8:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[80/94] Building CXX object CMakeFiles/katago.dir/command/gatekeeper.cpp.o
+/home/vfilinov/source/KataGo/cpp/command/gatekeeper.cpp: In member function ‘void {anonymous}::NetAndStuff::runWriteDataLoop(Logger&)’:
+/home/vfilinov/source/KataGo/cpp/command/gatekeeper.cpp:140:17: warning: variable ‘endBoard’ set but not used [-Wunused-but-set-variable]
+  140 |           Board endBoard = hist.getRecentBoard(0);
+      |                 ^~~~~~~~
+In file included from /home/vfilinov/source/KataGo/cpp/command/gatekeeper.cpp:12:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h: At global scope:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[81/94] Building CXX object CMakeFiles/katago.dir/command/gputest.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/gputest.cpp:6:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[82/94] Building CXX object CMakeFiles/katago.dir/command/analysis.cpp.o
+/home/vfilinov/source/KataGo/cpp/command/analysis.cpp: In function ‘int MainCmds::analysis(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/analysis.cpp:139:14: warning: unused variable ‘assumeMultipleStartingBlackMovesAreHandicap’ [-Wunused-variable]
+  139 |   const bool assumeMultipleStartingBlackMovesAreHandicap =
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/vfilinov/source/KataGo/cpp/command/analysis.cpp:8:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h: At global scope:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[84/94] Building CXX object CMakeFiles/katago.dir/command/match.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/match.cpp:9:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[85/94] Building CXX object CMakeFiles/katago.dir/command/runtests.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/runtests.cpp:19:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[86/94] Building CXX object CMakeFiles/katago.dir/command/genbook.cpp.o
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp: In lambda function:
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp:801:20: warning: unused variable ‘includeOwnerMap’ [-Wunused-variable]
+  801 |         const bool includeOwnerMap = false;
+      |                    ^~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp: In lambda function:
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp:912:10: warning: unused variable ‘includeOwnerMap’ [-Wunused-variable]
+  912 |     bool includeOwnerMap = false;
+      |          ^~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp: In function ‘int MainCmds::genbook(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp:319:14: warning: unused variable ‘loadKomiFromCfg’ [-Wunused-variable]
+  319 |   const bool loadKomiFromCfg = true;
+      |              ^~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp: In function ‘int MainCmds::writebook(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp:1476:14: warning: unused variable ‘loadKomiFromCfg’ [-Wunused-variable]
+ 1476 |   const bool loadKomiFromCfg = true;
+      |              ^~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp: In lambda function:
+/home/vfilinov/source/KataGo/cpp/command/genbook.cpp:1868:14: warning: unused variable ‘includeOwnerMap’ [-Wunused-variable]
+ 1868 |         bool includeOwnerMap = false;
+      |              ^~~~~~~~~~~~~~~
+In file included from /home/vfilinov/source/KataGo/cpp/command/genbook.cpp:13:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h: At global scope:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[87/94] Building CXX object CMakeFiles/katago.dir/command/gtp.cpp.o
+/home/vfilinov/source/KataGo/cpp/command/gtp.cpp: In function ‘int MainCmds::gtp(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/gtp.cpp:1815:14: warning: unused variable ‘b’ [-Wunused-variable]
+ 1815 |         bool b;
+      |              ^
+/home/vfilinov/source/KataGo/cpp/command/gtp.cpp:2735:11: warning: unused variable ‘tmp’ [-Wunused-variable]
+ 2735 |       int tmp;
+      |           ^~~
+In file included from /home/vfilinov/source/KataGo/cpp/command/gtp.cpp:12:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h: At global scope:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[89/94] Building CXX object CMakeFiles/katago.dir/main.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/main.cpp:18:
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h: In constructor ‘VCFsolver::VCFsolver(Rules)’:
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h:71:25: warning: declaration of ‘rules’ shadows a member of ‘VCFsolver’ [-Wshadow]
+   71 |   VCFsolver(const Rules rules):rules(rules){ threes.resize(4 * sz * sz); }
+      |             ~~~~~~~~~~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h:33:9: note: shadowed declaration is here
+   33 |   Rules rules;
+      |         ^~~~~
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h: In constructor ‘VCFsolver::VCFsolver(Rules)’:
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h:71:25: warning: declaration of ‘rules’ shadows a member of ‘VCFsolver’ [-Wshadow]
+   71 |   VCFsolver(const Rules rules):rules(rules){ threes.resize(4 * sz * sz); }
+      |             ~~~~~~~~~~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h:33:9: note: shadowed declaration is here
+   33 |   Rules rules;
+      |         ^~~~~
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h: In constructor ‘VCFsolver::VCFsolver(Rules)’:
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h:71:25: warning: declaration of ‘rules’ shadows a member of ‘VCFsolver’ [-Wshadow]
+   71 |   VCFsolver(const Rules rules):rules(rules){ threes.resize(4 * sz * sz); }
+      |             ~~~~~~~~~~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/external/../vcfsolver/VCFsolver.h:33:9: note: shadowed declaration is here
+   33 |   Rules rules;
+      |         ^~~~~
+[91/94] Building CXX object CMakeFiles/katago.dir/command/selfplay.cpp.o
+In file included from /home/vfilinov/source/KataGo/cpp/command/selfplay.cpp:11:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[92/94] Building CXX object CMakeFiles/katago.dir/command/gomprotocol.cpp.o
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: In constructor ‘GomEngine::GomEngine(const string&, SearchParams, Rules, double, double, double, Player, int)’:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:160:10: warning: ‘GomEngine::genmoveTimeSum’ will be initialized after [-Wreorder]
+  160 |   double genmoveTimeSum;
+      |          ^~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:137:7: warning:   ‘int GomEngine::logPVCoordinatesMode’ [-Wreorder]
+  137 |   int logPVCoordinatesMode;
+      |       ^~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:162:3: warning:   when initialized here [-Wreorder]
+  162 |   GomEngine(
+      |   ^~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: In lambda function:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:473:18: warning: unused variable ‘drawValue’ [-Wunused-variable]
+  473 |           double drawValue = //data.expectFinishGameMovenum;
+      |                  ^~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: In member function ‘void GomEngine::genMove(Player, Logger&, double, double, bool, bool, double, int, double, bool, bool, bool, bool, std::string&, bool&, bool&, GomEngine::AnalyzeArgs)’:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:579:10: warning: unused variable ‘resigned’ [-Wunused-variable]
+  579 |     bool resigned = false;
+      |          ^~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:508:10: warning: unused parameter ‘ogsChatToStderr’ [-Wunused-parameter]
+  508 |     bool ogsChatToStderr, bool allowResignation, double resignThreshold, int resignConsecTurns, double resignMinScoreDifference,
+      |     ~~~~~^~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:508:32: warning: unused parameter ‘allowResignation’ [-Wunused-parameter]
+  508 |     bool ogsChatToStderr, bool allowResignation, double resignThreshold, int resignConsecTurns, double resignMinScoreDifference,
+      |                           ~~~~~^~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:508:57: warning: unused parameter ‘resignThreshold’ [-Wunused-parameter]
+  508 |     bool ogsChatToStderr, bool allowResignation, double resignThreshold, int resignConsecTurns, double resignMinScoreDifference,
+      |                                                  ~~~~~~~^~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:508:78: warning: unused parameter ‘resignConsecTurns’ [-Wunused-parameter]
+  508 |     bool ogsChatToStderr, bool allowResignation, double resignThreshold, int resignConsecTurns, double resignMinScoreDifference,
+      |                                                                          ~~~~^~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:508:104: warning: unused parameter ‘resignMinScoreDifference’ [-Wunused-parameter]
+  508 |     bool ogsChatToStderr, bool allowResignation, double resignThreshold, int resignConsecTurns, double resignMinScoreDifference,
+      |                                                                                                 ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: In member function ‘double GomEngine::searchAndGetValue(Player, Logger&, double, bool, bool, std::string&, bool&, GomEngine::AnalyzeArgs)’:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:691:12: warning: variable ‘winLossValue’ set but not used [-Wunused-but-set-variable]
+  691 |     double winLossValue;
+      |            ^~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: In function ‘int MainCmds::gomprotocol(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:1223:16: warning: unused variable ‘debug’ [-Wunused-variable]
+ 1223 |           bool debug = false;
+      |                ^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:1224:16: warning: unused variable ‘playChosenMove’ [-Wunused-variable]
+ 1224 |           bool playChosenMove = false;
+      |                ^~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:943:10: warning: variable ‘hasId’ set but not used [-Wunused-but-set-variable]
+  943 |     bool hasId = false;
+      |          ^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:860:16: warning: unused variable ‘resignMinScoreDifference’ [-Wunused-variable]
+  860 |   const double resignMinScoreDifference = cfg.contains("resignMinScoreDifference") ? cfg.getDouble("resignMinScoreDifference",0.0,1000.0) : -1e10;
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:868:14: warning: unused variable ‘preventEncore’ [-Wunused-variable]
+  868 |   const bool preventEncore = cfg.contains("preventCleanupPhase") ? cfg.getBool("preventCleanupPhase") : true;
+      |              ^~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:869:16: warning: unused variable ‘dynamicPlayoutDoublingAdvantageCapPerOppLead’ [-Wunused-variable]
+  869 |   const double dynamicPlayoutDoublingAdvantageCapPerOppLead =
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: At global scope:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:22:13: warning: ‘bool timeIsValid(const double&)’ defined but not used [-Wunused-function]
+   22 | static bool timeIsValid(const double& time) {
+      |             ^~~~~~~~~~~
+In file included from /home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:8:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp: In function ‘int MainCmds::gomprotocol(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:1261:39: warning: ‘whiteLoc’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 1261 |               bool suc1 = engine->play(whiteLoc, C_WHITE);
+      |                           ~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:1262:39: warning: ‘blackLoc’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 1262 |               bool suc2 = engine->play(blackLoc, C_BLACK);
+      |                           ~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:63:60: warning: ‘y3’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   63 |                        1.0 / sqrt((x - x3) * (x - x3) + (y - y3) * (y - y3));
+      |                                                         ~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:32:30: note: ‘y3’ was declared here
+   32 |   double x1, x2, x3, y1, y2, y3;
+      |                              ^~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:62:60: warning: ‘y2’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   62 |                        1.0 / sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2)) -
+      |                                                         ~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:32:26: note: ‘y2’ was declared here
+   32 |   double x1, x2, x3, y1, y2, y3;
+      |                          ^~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:61:61: warning: ‘y1’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   61 |         values[x][y] = -1.0 / sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1)) -
+      |                                                          ~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:32:22: note: ‘y1’ was declared here
+   32 |   double x1, x2, x3, y1, y2, y3;
+      |                      ^~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:63:38: warning: ‘x3’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   63 |                        1.0 / sqrt((x - x3) * (x - x3) + (y - y3) * (y - y3));
+      |                                   ~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:32:18: note: ‘x3’ was declared here
+   32 |   double x1, x2, x3, y1, y2, y3;
+      |                  ^~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:62:38: warning: ‘x2’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   62 |                        1.0 / sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2)) -
+      |                                   ~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:32:14: note: ‘x2’ was declared here
+   32 |   double x1, x2, x3, y1, y2, y3;
+      |              ^~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:61:39: warning: ‘x1’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   61 |         values[x][y] = -1.0 / sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1)) -
+      |                                    ~~~^~~~~
+/home/vfilinov/source/KataGo/cpp/command/gomprotocol.cpp:32:10: note: ‘x1’ was declared here
+   32 |   double x1, x2, x3, y1, y2, y3;
+      |          ^~
+[93/94] Building CXX object CMakeFiles/katago.dir/command/misc.cpp.o
+/home/vfilinov/source/KataGo/cpp/command/misc.cpp: In lambda function:
+/home/vfilinov/source/KataGo/cpp/command/misc.cpp:902:18: warning: unused variable ‘preventEncore’ [-Wunused-variable]
+  902 |       const bool preventEncore = false;
+      |                  ^~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/misc.cpp: In function ‘int MainCmds::samplesgfs(const std::vector<std::__cxx11::basic_string<char> >&)’:
+/home/vfilinov/source/KataGo/cpp/command/misc.cpp:572:8: warning: unused variable ‘valueFluctuationMakeKomiFair’ [-Wunused-variable]
+  572 |   bool valueFluctuationMakeKomiFair;
+      |        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/vfilinov/source/KataGo/cpp/command/misc.cpp:13:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h: At global scope:
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:109:17: warning: ‘Setup::TRAINING_DATA_VCF_PROB’ defined but not used [-Wunused-variable]
+  109 |   static double TRAINING_DATA_VCF_PROB = 0.9;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+/home/vfilinov/source/KataGo/cpp/command/../program/setup.h:108:17: warning: ‘Setup::TRAINING_DATA_FORBIDDEN_FEATURE_PROB’ defined but not used [-Wunused-variable]
+  108 |   static double TRAINING_DATA_FORBIDDEN_FEATURE_PROB = 0.5;
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[94/94] Linking CXX executable katago
+
+root@Western:/home/vfilinov/source/KataGo/build#

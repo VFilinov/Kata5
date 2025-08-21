@@ -27,8 +27,9 @@
 //13 = V7 features, Adjusted scaling on shortterm score variance, and made C++ side read in scalings.
 //14 = V7 features, Squared softplus for error variance predictions
 //15 = V7 features, Extra nonlinearity for pass output
+//16 = V7 features, Q value predictions in the policy head
 
-const int max_new_version = 15;
+const int max_new_version = 16;
 
 static void fail(int modelVersion) {
   throw StringError("NNModelVersion: Model version not currently implemented or supported: " + Global::intToString(modelVersion));
@@ -47,11 +48,13 @@ int NNModelVersion::getSupportedVersion(int modelVersion, VersionMode mode) {
 
   switch(mode) {
   case SUPPORTED_VERSION:
-      if(modelVersion == 98)
+      /* if(modelVersion == 98)
         return 1;
-      else if(modelVersion == 8)
+      else
+      if(modelVersion == 8)
         return 1;
-      else if(modelVersion == 10)
+      else*/
+      if(modelVersion == 10)
         return 1;
       else if(modelVersion == 101)
         return 1;
@@ -80,8 +83,8 @@ int NNModelVersion::getSupportedVersion(int modelVersion, VersionMode mode) {
   case TYPE_VCN_RULE:
     if(modelVersion >= 8 && modelVersion <= 10)
       return RULE_NOT_VCN;
-    else if(modelVersion == 98)
-      return RULE_NOT_VCN;
+    //else if(modelVersion == 98)
+    //  return RULE_NOT_VCN;
     else if(modelVersion == 101)
       return RULE_IS_VCN;
     else if(modelVersion == 102)
@@ -103,6 +106,11 @@ int NNModelVersion::getSupportedVersion(int modelVersion, VersionMode mode) {
       return 1;
     break;
 
+  case Q_VALUE_PREDICTIONS:
+    if(modelVersion >= 16 && modelVersion <= max_new_version)
+      return 1;
+    break;
+
   case IS_TIME_LEFT:
     if(modelVersion >= 9)
       return 1;
@@ -116,11 +124,11 @@ int NNModelVersion::getSupportedVersion(int modelVersion, VersionMode mode) {
 
 int NNModelVersion::getInputsVersion(int modelVersion) {
 
-  if(modelVersion == 98)
-    return 97;
-  else if(modelVersion == 8)
-    return 7;
-  else if(modelVersion == 10)
+  //if(modelVersion == 98)
+  //  return 97;
+  //else if(modelVersion == 8)
+  //  return 7;
+  if(modelVersion == 10)
     return 10;  // c VCF&& multirules
   else if(modelVersion == 101)
     return 101; // VCN
@@ -137,9 +145,10 @@ int NNModelVersion::getInputsVersion(int modelVersion) {
 
 bool NNModelVersion::isSupportedInputsVersion(int inputsVersion, bool is_fail) {
 
-  if(inputsVersion==97)
+  /* if(inputsVersion == 97)
     return true;
-  else if(inputsVersion == 7)
+  else */
+  if(inputsVersion == 7)
     return true;
   else if(inputsVersion == 10)
     return true;
@@ -165,7 +174,7 @@ int NNModelVersion::getNumGlobalFeatures(int modelVersion) {
 
 int NNModelVersion::getNumSpatialFeaturesForInputs(int inputsVersion) {
 
-  if(inputsVersion == 7 || inputsVersion == 97 || inputsVersion == 10) {
+  if(inputsVersion == 7 || /* inputsVersion == 97 ||*/ inputsVersion == 10) {
     return NNInputs::NUM_FEATURES_SPATIAL_V7;
   } else if(inputsVersion == 101) {
     return NNInputs::NUM_FEATURES_SPATIAL_V101;
@@ -176,7 +185,7 @@ int NNModelVersion::getNumSpatialFeaturesForInputs(int inputsVersion) {
 
 int NNModelVersion::getNumGlobalFeaturesForInputs(int inputsVersion) {
 
-  if(inputsVersion == 7 || inputsVersion == 97 || inputsVersion == 10) {
+  if(inputsVersion == 7 || /* inputsVersion == 97 ||*/ inputsVersion == 10) {
     return NNInputs::NUM_FEATURES_GLOBAL_V7;
   } else if(inputsVersion == 101) {
     return NNInputs::NUM_FEATURES_GLOBAL_V101;

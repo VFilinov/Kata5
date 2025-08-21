@@ -649,6 +649,8 @@ private:
     double& wlError
   ) const;
 
+  void debugPrintChildrenSummary(std::ostream& out, const SearchNode& node, NNOutput* nnOutput);
+
 };
 
 #endif  // SEARCH_SEARCH_H_

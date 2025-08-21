@@ -17,6 +17,7 @@ std::vector<std::string> Setup::getBackendPrefixes() {
   std::vector<std::string> prefixes;
   prefixes.push_back("cuda");
   prefixes.push_back("trt");
+  prefixes.push_back("metal");
   prefixes.push_back("opencl");
   prefixes.push_back("eigen");
   prefixes.push_back("dummybackend");
@@ -81,6 +82,8 @@ vector<NNEvaluator*> Setup::initializeNNEvaluators(
   string backendPrefix = "cuda";
   #elif defined(USE_TENSORRT_BACKEND)
   string backendPrefix = "trt";
+  #elif defined(USE_METAL_BACKEND)
+  string backendPrefix = "metal";
   #elif defined(USE_OPENCL_BACKEND)
   string backendPrefix = "opencl";
   #elif defined(USE_EIGEN_BACKEND)
@@ -138,8 +141,8 @@ vector<NNEvaluator*> Setup::initializeNNEvaluators(
         requireExactNNLen = cfg.getBool("requireMaxBoardSize");
     }
 
-    bool inputsUseNHWC = backendPrefix == "opencl" || backendPrefix == "trt" ? false : true;
-    if(cfg.contains(backendPrefix+"InputsUseNHWC"+idxStr))
+    bool inputsUseNHWC = backendPrefix == "opencl" || backendPrefix == "trt" || backendPrefix == "metal" ? false : true;
+    if(cfg.contains(backendPrefix + "InputsUseNHWC" + idxStr))
       inputsUseNHWC = cfg.getBool(backendPrefix+"InputsUseNHWC"+idxStr);
     else if(cfg.contains("inputsUseNHWC"+idxStr))
       inputsUseNHWC = cfg.getBool("inputsUseNHWC"+idxStr);
@@ -917,6 +920,8 @@ Rules Setup::loadSingleRules(
       throw StringError("Cannot both specify 'rules' and individual rules like basicRule");
 
     rules = Rules::parseRules(cfg.getString("rules"));
+    if(rules.basicRule != Rules::BASICRULE_RENJU && rules.basicRule != Rules::BASICRULE_STANDARD && rules.basicRule != Rules::BASICRULE_FREESTYLE)
+      rules.basicRule = Rules::BASICRULE_RENJU;
   } else {
     float komi = 0.0f;
 
@@ -926,7 +931,7 @@ Rules Setup::loadSingleRules(
       string basicRule = cfg.getString("basicRule", Rules::basicRuleStrings());
       rules.basicRule = Rules::parseBasicRule(basicRule);
     } else {
-      rules.basicRule = Rules::BASICRULE_FREESTYLE;
+      rules.basicRule = Rules::BASICRULE_RENJU;
     }
   }
 
@@ -1014,38 +1019,25 @@ std::vector<std::unique_ptr<PatternBonusTable>> Setup::loadAvoidSgfPatternBonusT
 static string boardSizeToStr(int boardXSize, int boardYSize) {
   return Global::intToString(boardXSize) + "x" + Global::intToString(boardYSize);
 }
-static int
-getAutoPatternIntParam(ConfigParser& cfg, const string& param, int boardXSize, int boardYSize, int min, int max) {
-  if(!cfg.contains(param))
-    throw ConfigParsingError(param + " was not specified in the config");
+static int getAutoPatternIntParam(ConfigParser& cfg, const string& param, int boardXSize, int boardYSize, int min, int max) {
   if(cfg.contains(param + boardSizeToStr(boardXSize, boardYSize)))
     return cfg.getInt(param + boardSizeToStr(boardXSize, boardYSize), min, max);
+  if(!cfg.contains(param))
+    throw ConfigParsingError(param + " was not specified in the config");
   return cfg.getInt(param, min, max);
 }
-static int64_t getAutoPatternInt64Param(
-  ConfigParser& cfg,
-  const string& param,
-  int boardXSize,
-  int boardYSize,
-  int64_t min,
-  int64_t max) {
-  if(!cfg.contains(param))
-    throw ConfigParsingError(param + " was not specified in the config");
+static int64_t getAutoPatternInt64Param(ConfigParser& cfg, const string& param, int boardXSize, int boardYSize, int64_t min, int64_t max) {
   if(cfg.contains(param + boardSizeToStr(boardXSize, boardYSize)))
     return cfg.getInt64(param + boardSizeToStr(boardXSize, boardYSize), min, max);
-  return cfg.getInt64(param, min, max);
-}
-static double getAutoPatternDoubleParam(
-  ConfigParser& cfg,
-  const string& param,
-  int boardXSize,
-  int boardYSize,
-  double min,
-  double max) {
   if(!cfg.contains(param))
     throw ConfigParsingError(param + " was not specified in the config");
+  return cfg.getInt64(param, min, max);
+}
+static double getAutoPatternDoubleParam(ConfigParser& cfg, const string& param, int boardXSize, int boardYSize, double min, double max) {
   if(cfg.contains(param + boardSizeToStr(boardXSize, boardYSize)))
     return cfg.getDouble(param + boardSizeToStr(boardXSize, boardYSize), min, max);
+  if(!cfg.contains(param))
+    throw ConfigParsingError(param + " was not specified in the config");
   return cfg.getDouble(param, min, max);
 }
 
@@ -1120,17 +1112,21 @@ std::unique_ptr<PatternBonusTable> Setup::loadAndPruneAutoPatternBonusTables(Con
 
       double penalty = getAutoPatternDoubleParam(cfg, "autoAvoidRepeatUtility", boardXSize, boardYSize, -3.0, 3.0);
       double lambda = getAutoPatternDoubleParam(cfg, "autoAvoidRepeatLambda", boardXSize, boardYSize, 0.0, 1.0);
-      int minTurnNumber =
-        getAutoPatternIntParam(cfg, "autoAvoidRepeatMinTurnNumber", boardXSize, boardYSize, 0, 1000000);
-      int maxTurnNumber =
-        getAutoPatternIntParam(cfg, "autoAvoidRepeatMaxTurnNumber", boardXSize, boardYSize, 0, 1000000);
-      size_t maxPoses =
-        getAutoPatternInt64Param(cfg, "autoAvoidRepeatMaxPoses", boardXSize, boardYSize, 0, (int64_t)1000000000000LL);
+      int minTurnNumber = getAutoPatternIntParam(cfg, "autoAvoidRepeatMinTurnNumber", boardXSize, boardYSize, 0, 1000000);
+      int maxTurnNumber = getAutoPatternIntParam(cfg, "autoAvoidRepeatMaxTurnNumber", boardXSize, boardYSize, 0, 1000000);
+      size_t maxPoses = getAutoPatternInt64Param(cfg, "autoAvoidRepeatMaxPoses", boardXSize, boardYSize, 0, (int64_t)1000000000000LL);
 
       string logSource = dirPath;
       patternBonusTable->avoidRepeatedPosMovesAndDeleteExcessFiles(
         {baseDir + "/" + dirName}, penalty, lambda, minTurnNumber, maxTurnNumber, maxPoses, logger, logSource);
     }
+
+    cfg.markAllKeysUsedWithPrefix("autoAvoidRepeatUtility");
+    cfg.markAllKeysUsedWithPrefix("autoAvoidRepeatLambda");
+    cfg.markAllKeysUsedWithPrefix("autoAvoidRepeatMinTurnNumber");
+    cfg.markAllKeysUsedWithPrefix("autoAvoidRepeatMaxTurnNumber");
+    cfg.markAllKeysUsedWithPrefix("autoAvoidRepeatMaxPoses");
+    cfg.markAllKeysUsedWithPrefix("autoAvoidRepeatSaveChunkSize");
   }
   return patternBonusTable;
 }

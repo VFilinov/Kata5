@@ -8,6 +8,13 @@
 
 STRUCT_NAMED_PAIR(Loc,loc,int16_t,policyTarget,PolicyTargetMove);
 STRUCT_NAMED_PAIR(std::vector<PolicyTargetMove>*,policyTargets,int64_t,unreducedNumVisits,PolicyTarget);
+STRUCT_NAMED_QUAD(Loc, loc, float, winLoss, float, score, int64_t, visits, QValueTargetMove);
+
+struct QValueTargets {
+  std::vector<QValueTargetMove> targets;
+  QValueTargets() = default;
+  ~QValueTargets() = default;
+};
 
 //Summary of value-head-related training targets for outputted data.
 struct ValueTargets {
@@ -37,6 +44,7 @@ struct SidePosition {
   double policyEntropy;
   double searchEntropy;
   ValueTargets whiteValueTargets;
+  QValueTargets whiteQValueTargets;
   NNRawStats nnRawStats;
   float targetWeight;
   float targetWeightUnrounded;
@@ -82,6 +90,7 @@ struct FinishedGameData {
   std::vector<double> policyEntropyByTurn;
   std::vector<double> searchEntropyByTurn;
   std::vector<ValueTargets> whiteValueTargetsByTurn; //Except this one, we may have some of
+  std::vector<QValueTargets> whiteQValueTargetsByTurn;
   std::vector<NNRawStats> nnRawStatsByTurn;
 
   double trainingWeight;
@@ -215,6 +224,12 @@ struct TrainingWriteBuffers {
   //C4: Final board area/territory [-120,120]. All 0 if C34 has weight 0. Unlike ownership, takes into account group tax and scoring rules.
   NumpyBuffer<int8_t> valueTargetsNCHW;
 
+  // Spatial q-value targets, from the perspective of the player to move.
+  // C0: winloss * 32000
+  // C1: score * 60
+  // C2: visits
+  NumpyBuffer<int16_t> qValueTargetsNCMove;
+
   NumpyBuffer<float> metadataInputNC;
 
   TrainingWriteBuffers(
@@ -246,7 +261,8 @@ struct TrainingWriteBuffers {
     double policyEntropy,
     double searchEntropy,
     const std::vector<ValueTargets>& whiteValueTargets,
-    int whiteValueTargetsIdx, //index in whiteValueTargets corresponding to this turn.
+    const std::vector<QValueTargets>& whiteQValueTargets,
+    int whiteValueTargetsIdx,  // index in whiteValueTargets corresponding to this turn.
     float valueTargetWeight,
 //    float tdValueTargetWeight,
 //    float leadTargetWeightFactor,

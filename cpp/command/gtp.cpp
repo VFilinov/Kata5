@@ -843,7 +843,7 @@ struct GTPEngine {
   ) {
     bool onMoveWasCalled = false;
     Loc genmoveMoveLoc = Board::NULL_LOC;
-    auto onMove = [&genmoveMoveLoc,&onMoveWasCalled,this](Loc moveLoc, int searchId, Search* search) {
+    auto onMove = [&genmoveMoveLoc,&onMoveWasCalled,this](Loc moveLoc, int searchId, Search* search) noexcept {
       (void)searchId;
       (void)search;
       onMoveWasCalled = true;
@@ -1702,14 +1702,21 @@ int MainCmds::gtp(const vector<string>& args) {
 
   bool currentlyGenmoving = false;
   bool currentlyAnalyzing = false;
+
   map<string, string> short_params;
   short_params["wrn"] = "analysisWideRootNoise";
   short_params["rpt"] = "rootPolicyTemperature";
   short_params["pda"] = "playoutDoublingAdvantage";
+  short_params["ce"] = "cpuctExploration";
+  short_params["cel"] = "cpuctExplorationLog";
+  short_params["ceb"] = "cpuctExplorationBase";
+
   map<string, string> short_commands;
   short_commands["mm"] = "maxmoves";
   short_commands["fpw"] = "firstpasswin";
-
+  short_commands["r"] = "renju";
+  short_commands["s"] = "standard";
+  short_commands["f"] = "freestyle";
 
   /* stringstream sin;
   sin << "clear_board\n";
@@ -3054,8 +3061,16 @@ int MainCmds::gtp(const vector<string>& args) {
         Rules newRules;
         bool parseSuccess = false;
         try {
-          newRules = Rules::updateRules("maxmoves", pieces[0], currentRules);
-          parseSuccess = true;
+          /*
+          tmp = Global::stringToInt(pieces[0]);
+          BoardHistory hist = engine->bot->getRootHist();
+          if(tmp>0 && hist.getMovenum() >= tmp) {
+            responseIsError = true;
+            response = "Maxmoves must be greater than the number of moves made";
+          } else { */
+            newRules = Rules::updateRules("maxmoves", pieces[0], currentRules);
+            parseSuccess = true;
+          //}
         } catch(const StringError& err) {
           responseIsError = true;
           response = err.what();

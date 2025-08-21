@@ -1,0 +1,45 @@
+*.[oa]
+*.exe
+*~
+__pycache__
+*.h5
+*.log
+*.cbp
+*.obj
+*.dll
+*.bak
+
+.svn/
+bin/
+Linux/
+misc/
+txt/
+
+cpp/tests/scratch
+cpp/CMakeCache.txt	
+cpp/configs/
+
+cpp/build
+cpp/out
+
+# For clion IDE
+.idea
+
+# For vscode
+.vscode
+
+# For VS
+.vs
+cpp/CMakeSettings.json
+
+# For cmake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+.DS_Store
+GPATH
+GRTAGS
+GTAGS
+

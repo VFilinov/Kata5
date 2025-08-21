@@ -18,7 +18,7 @@ void Search::computeRootNNEvaluation(NNResultBuf& nnResultBuf) {
   nnInputParams.policyOptimism = searchParams.rootPolicyOptimism;
 
   nnInputParams.noResultUtilityForWhite = searchParams.noResultUtilityForWhite;
-  nnInputParams.useVCFInput = searchParams.useVCFInput;
+  nnInputParams.useVCFInput = searchParams.useVCFInput && hist.rules.maxMoves == 0;
   nnInputParams.useForbiddenInput = searchParams.useForbiddenInput;
   nnInputParams.suppressPass = searchParams.suppressPass;
   nnInputParams.fourAttackPolicyReduce = searchParams.fourAttackPolicyReduce;
@@ -32,9 +32,9 @@ void Search::computeRootNNEvaluation(NNResultBuf& nnResultBuf) {
   //if(searchParams.ignorePreRootHistory || searchParams.ignoreAllHistory)
   //  nnInputParams.maxHistory = 0;
   nnEvaluator->evaluate(
-    board, hist, pla,
+    board, hist, pla, &searchParams.humanSLProfile,
     nnInputParams,
-    nnResultBuf, skipCache/*, includeOwnerMap*/
+    nnResultBuf, skipCache
   );
 }
 
@@ -82,7 +82,7 @@ bool Search::initNodeNNOutput(
       isRoot ? 0 : std::max(0, (int)thread.history.moveHistory.size() - (int)rootHistory.moveHistory.size());
   }*/
 
-  std::shared_ptr<NNOutput>* result;
+  std::shared_ptr<NNOutput>* result = NULL;
   std::shared_ptr<NNOutput>* humanResult = NULL;
   if(isRoot && searchParams.rootNumSymmetriesToSample > 1) {
     result = nnEvaluator->averageMultipleSymmetries(
@@ -186,7 +186,7 @@ bool Search::maybeRecomputeExistingNNOutput(
       //Recompute if we have no ownership map, since we need it for getEndingWhiteScoreBonus
       //If conservative passing, then we may also need to recompute the root policy ignoring the history if a pass ends the game
       //If averaging a bunch of symmetries, then we need to recompute it too
-      //If root needs different optimism, we need to recompute it. Also do so when ignoring history pre root Also do so when ignoring history pre root
+      //If root needs different optimism, we need to recompute it.
       //If humanSL is missing, but we want it, we need to recompute.
       // Also do so when ignoring history pre root
       if(searchParams.rootNumSymmetriesToSample > 1 || searchParams.rootPolicyOptimism != searchParams.policyOptimism ||

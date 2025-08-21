@@ -11,8 +11,10 @@
 #include "../command/commandline.h"
 #include "../main.h"
 #include "../external/nlohmann_json/json.hpp"
+#include "../core/datetime.h"
 
 #include <csignal>
+#include <optional>
 
 using namespace std;
 using nlohmann::json;
@@ -24,6 +26,10 @@ struct MatchResultOneBot {
   int win_b;
   int lose_b;
   int draw_b;
+  double timeUsed;
+  uint64_t moves;
+  int count;
+
   MatchResultOneBot() {
     win = 0;
     lose = 0;
@@ -31,30 +37,11 @@ struct MatchResultOneBot {
     win_b = 0;
     lose_b = 0;
     draw_b = 0;
+    timeUsed = 0;
+    moves = 0;
+    count = 0;
   }
 };
-
-std::string getCurrentTimeString() {
-  auto now = std::chrono::system_clock::now();
-
-  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-
-  std::tm now_tm;
-#if defined(_MSC_VER)  // MSVC (Visual Studio)
-  localtime_s(&now_tm, &now_time_t);
-#else  // GCC/Clang
-  localtime_r(&now_time_t, &now_tm);
-#endif
-
-  auto duration = now.time_since_epoch();
-  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration) % 1000;
-
-  std::ostringstream oss;
-  oss << std::put_time(&now_tm, "%Y-%m-%d-%H-%M-%S");
-  oss << '-' << std::setfill('0') << std::setw(3) << millis.count();
-  return oss.str();
-}
-
 
 static std::atomic<bool> sigReceived(false);
 static std::atomic<bool> shouldStop(false);
@@ -68,7 +55,6 @@ static void signalHandler(int signal)
 
 int MainCmds::match(const vector<string>& args) {
   Board::initHash();
-  //ScoreValue::initTables();
   Rand seedRand;
 
   ConfigParser cfg;
@@ -77,7 +63,6 @@ int MainCmds::match(const vector<string>& args) {
   string resultOutputDir;
   string openingsFile;
   auto start = std::chrono::steady_clock::now();
-  uint64_t cnt_moves = 0;
 
   try {
     KataGoCommandLine cmd("Play different nets against each other with different search settings in a match or tournament.");
@@ -126,18 +111,13 @@ int MainCmds::match(const vector<string>& args) {
   std::vector<std::pair<int,int>> matchupsPerRound;
   {
     //Load a filter on what bots we actually want to run. By default, include everything.
-    vector<bool> includeBot(numBots);
+    vector<bool> includeBot(numBots, true);
     if(cfg.contains("includeBots")) {
+      std::fill(includeBot.begin(), includeBot.end(), false);
       vector<int> includeBotIdxs = cfg.getInts("includeBots",0,Setup::MAX_BOT_PARAMS_FROM_CFG);
-      for(int i = 0; i<numBots; i++) {
-        if(contains(includeBotIdxs,i))
-          includeBot[i] = true;
-      }
-    }
-    else {
-      for(int i = 0; i<numBots; i++) {
-        includeBot[i] = true;
-      }
+      for(int idx : includeBotIdxs)
+        if(idx >= 0 && idx < numBots)
+          includeBot[idx] = true;
     }
 
     std::vector<int> secondaryBotIdxs;
@@ -153,8 +133,8 @@ int MainCmds::match(const vector<string>& args) {
         if(!includeBot[j])
           continue;
         if(i < j && !(contains(secondaryBotIdxs,i) && contains(secondaryBotIdxs,j))) {
-          matchupsPerRound.push_back(make_pair(i,j));
-          matchupsPerRound.push_back(make_pair(j,i));
+          matchupsPerRound.emplace_back(i, j);
+          matchupsPerRound.emplace_back(j, i);
         }
       }
     }
@@ -165,11 +145,11 @@ int MainCmds::match(const vector<string>& args) {
         int p0 = pair.first;
         int p1 = pair.second;
         if(cfg.contains("extraPairsAreOneSidedBW") && cfg.getBool("extraPairsAreOneSidedBW")) {
-          matchupsPerRound.push_back(std::make_pair(p0,p1));
+          matchupsPerRound.emplace_back(p0, p1);
         }
         else {
-          matchupsPerRound.push_back(std::make_pair(p0,p1));
-          matchupsPerRound.push_back(std::make_pair(p1,p0));
+          matchupsPerRound.emplace_back(p0, p1);
+          matchupsPerRound.emplace_back(p1, p0);
         }
       }
     }
@@ -225,6 +205,11 @@ int MainCmds::match(const vector<string>& args) {
 
   //Load match runner settings
   int numGameThreads = cfg.getInt("numGameThreads",1,16384);
+  const bool logOpenings = cfg.contains("logOpenings") ? cfg.getBool("logOpenings") : false;
+  const int maxTryTimes = cfg.contains("maxTryTimes") ? cfg.getInt("maxTryTimes", 1, 1000) : 20;
+  const int logThreadsEvery = cfg.contains("logThreadsEvery") ? cfg.getInt("logThreadsEvery", 1, 10000) : 20;
+  const int64_t logGamesEvery = cfg.getInt64("logGamesEvery", 1, 1000000);
+
   const string gameSeedBase = Global::uint64ToHexString(seedRand.nextUInt64());
 
   //Work out an upper bound on how many concurrent nneval requests we could end up making.
@@ -242,6 +227,8 @@ int MainCmds::match(const vector<string>& args) {
   //Initialize object for randomizing game settings and running games
   PlaySettings playSettings = PlaySettings::loadForMatch(cfg);
   playSettings.fileOpenings = openingsFile;
+  playSettings.logOpenings = logOpenings;
+  playSettings.maxTryTimes = maxTryTimes;
 
   GameRunner* gameRunner = new GameRunner(cfg, playSettings, logger);
   const int minBoardXSizeUsed = gameRunner->getGameInitializer()->getMinBoardXSize();
@@ -291,7 +278,6 @@ int MainCmds::match(const vector<string>& args) {
   if(!logger.isLoggingToStdout())
     cout << "Loaded all config stuff, starting matches" << endl;
 
-  // string resultOutputDir = "./matchresult";
   if(sgfOutputDir != string()) {
     MakeDir::make(sgfOutputDir);
   }
@@ -307,48 +293,41 @@ int MainCmds::match(const vector<string>& args) {
 
   std::mutex statsMutex;
   int64_t gameCount = 0;
-  std::map<string,double> timeUsedByBotMap;
-  std::map<string,double> movesByBotMap;
   std::map<string, MatchResultOneBot> resultsByBotMap;
 
   Rand hashRand;
-  ofstream* sgfOut = NULL;
-  if(sgfOutputDir.length() > 0) {
-    sgfOut = new ofstream();
+  std::optional<std::ofstream> sgfOut;
+  if(!sgfOutputDir.empty()) {
+    sgfOut.emplace();
     FileUtils::open(*sgfOut, sgfOutputDir + "/" + Global::uint64ToHexString(hashRand.nextUInt64()) + ".sgfs");
   }
 
   auto runMatchLoop = [
-    &gameRunner,&matchPairer,&sgfOut/*&sgfOutputDir*/,&logger,&gameSeedBase,&patternBonusTables,
-    &statsMutex, &gameCount, &timeUsedByBotMap, &movesByBotMap, &resultsByBotMap, &cnt_moves
-  ](
-    /* uint64_t threadHash*/
-  ) {
-    /*
-    ofstream* sgfOut = NULL;
-    if(sgfOutputDir.length() > 0) {
-      sgfOut = new ofstream();
-      FileUtils::open(*sgfOut, sgfOutputDir + "/" + Global::uint64ToHexString(threadHash) + ".sgfs");
-    }
-    */
-    auto shouldStopFunc = []() {
+    &gameRunner,&matchPairer,&sgfOut,&logger,&gameSeedBase,&patternBonusTables,
+    &statsMutex, &gameCount, &resultsByBotMap, &logGamesEvery, &logThreadsEvery](int threadIdx)
+  {
+    auto shouldStopFunc = []() noexcept {
       return shouldStop.load();
     };
     WaitableFlag* shouldPause = nullptr;
 
-    Rand thisLoopSeedRand;
+    //Rand thisLoopSeedRand;
+
+    if(threadIdx % logThreadsEvery == 0)
+      logger.write("Match loop thread " + Global::intToString(threadIdx) + " starting");
 
     while(true) {
       if(shouldStop.load())
         break;
 
-      FinishedGameData* gameData = NULL;
-      InitialPosition* initialPosition = NULL;
+      FinishedGameData* gameData = nullptr;
+      InitialPosition* initialPosition = nullptr;
 
       MatchPairer::BotSpec botSpecB;
       MatchPairer::BotSpec botSpecW;
 
-      string seed = gameSeedBase + ":" + Global::uint64ToHexString(thisLoopSeedRand.nextUInt64());
+      //string seed = gameSeedBase + ":" + Global::uint64ToHexString(thisLoopSeedRand.nextUInt64());
+      string seed = gameSeedBase;
       if(matchPairer->getMatchup(botSpecB, botSpecW, logger, seed, &initialPosition)) {
         std::function<void(const MatchPairer::BotSpec&, Search*)> afterInitialization = [&patternBonusTables](const MatchPairer::BotSpec& spec, Search* search) {
           assert(spec.botIdx < patternBonusTables.size());
@@ -358,9 +337,9 @@ int MainCmds::match(const vector<string>& args) {
             seed, botSpecB, botSpecW, NULL, logger, shouldStopFunc, shouldPause, nullptr, afterInitialization, nullptr, initialPosition);
       }
 
-      bool shouldContinue = gameData != NULL;
-      if(gameData != NULL) {
-        if(sgfOut != NULL) {
+      bool shouldContinue = gameData;
+      if(gameData) {
+        if(sgfOut) {
           std::lock_guard<std::mutex> lock(statsMutex);
           WriteSgf::writeSgf(*sgfOut, gameData->bName, gameData->wName, gameData->endHist, gameData, false, true);
           (*sgfOut) << endl;
@@ -369,27 +348,23 @@ int MainCmds::match(const vector<string>& args) {
         {
           std::lock_guard<std::mutex> lock(statsMutex);
           gameCount += 1;
-          timeUsedByBotMap[gameData->bName] += gameData->bTimeUsed;
-          timeUsedByBotMap[gameData->wName] += gameData->wTimeUsed;
-          movesByBotMap[gameData->bName] += (double)gameData->bMoveCount;
-          movesByBotMap[gameData->wName] += (double)gameData->wMoveCount;
-          cnt_moves += gameData->bMoveCount;
-          cnt_moves += gameData->wMoveCount;
 
-          if(!resultsByBotMap.count(gameData->bName))
-            resultsByBotMap[gameData->bName] = MatchResultOneBot();
-          if(!resultsByBotMap.count(gameData->wName))
-            resultsByBotMap[gameData->wName] = MatchResultOneBot();
+          resultsByBotMap.try_emplace(gameData->bName, MatchResultOneBot());
+          resultsByBotMap.try_emplace(gameData->wName, MatchResultOneBot());
 
-          Color winner = gameData->endHist.winner;
           auto& br = resultsByBotMap[gameData->bName];
           auto& wr = resultsByBotMap[gameData->wName];
 
-          if(winner == C_EMPTY) {
-            br.draw += 1;
-            br.draw_b += 1;
-            wr.draw += 1;
-          } else if(winner == C_BLACK) {
+          br.count += 1;
+          wr.count += 1;
+          br.timeUsed += gameData->bTimeUsed;
+          wr.timeUsed += gameData->wTimeUsed;
+          br.moves += gameData->bMoveCount;
+          wr.moves += gameData->wMoveCount;
+
+          Color winner = gameData->endHist.winner;
+
+          if(winner == C_BLACK) {
             br.win += 1;
             br.win_b += 1;
             wr.lose += 1;
@@ -397,18 +372,20 @@ int MainCmds::match(const vector<string>& args) {
             br.lose += 1;
             br.lose_b += 1;
             wr.win += 1;
-          } else
-            throw StringError("Unknown match game result");
+          } else {
+            br.draw += 1;
+            br.draw_b += 1;
+            wr.draw += 1;
+          }
 
-          int64_t x = gameCount;
-          while(x % 2 == 0 && x > 1) x /= 2;
-          if(x == 1 || x == 3 || x == 5) {
-            for(auto& pair : timeUsedByBotMap) {
+          if(gameCount % logGamesEvery == 0) {
+            for(auto& [name, r] : resultsByBotMap) {
+              double avgtime = r.timeUsed;
+              if(r.moves != 0)
+                avgtime /= r.moves;
+              avgtime = round(avgtime * 1000.0) / 1000.0;
               logger.write(
-                "Avg move time used by " + pair.first + " " +
-                Global::doubleToString(pair.second / movesByBotMap[pair.first]) + " " +
-                Global::doubleToString(movesByBotMap[pair.first]) + " moves"
-              );
+                Global::strprintf("%s played %d games (wins %d, draws %d, moves %d, avg time %.3f)", name, r.count, r.win, r.draw, r.moves, avgtime));
             }
           }
         }
@@ -421,40 +398,39 @@ int MainCmds::match(const vector<string>& args) {
       if(!shouldContinue)
         break;
     }
-    /*if(sgfOut != NULL) {
-      sgfOut->close();
-      delete sgfOut;
-    }*/
-    logger.write("Match loop thread terminating");
+    if(threadIdx % logThreadsEvery == 0)
+      logger.write("Match loop thread " + Global::intToString(threadIdx) + " terminating");
   };
-  auto runMatchLoopProtected = [&logger, &runMatchLoop](/* uint64_t threadHash*/) {
-    Logger::logThreadUncaught("match loop", &logger, [&]() { runMatchLoop(/* threadHash*/); });
+  auto runMatchLoopProtected = [&logger, &runMatchLoop](int threadIdx) {
+    Logger::logThreadUncaught("match loop", &logger, [&]() { runMatchLoop(threadIdx); });
   };
 
   // Rand hashRand;
   vector<std::thread> threads;
   for(int i = 0; i<numGameThreads; i++) {
-    threads.push_back(std::thread(runMatchLoopProtected /*, hashRand.nextUInt64()*/));
+    threads.push_back(std::thread(runMatchLoopProtected, i ));
   }
-  for(int i = 0; i<threads.size(); i++)
-    threads[i].join();
+  for(auto& t : threads)
+    t.join();
 
   delete matchPairer;
   delete gameRunner;
 
-  if(sgfOut != NULL) {
+  if(sgfOut)
     sgfOut->close();
-    delete sgfOut;
-  }
 
   if(numBots == 2) {
+    std::lock_guard<std::mutex> lock(statsMutex);
+    resultsByBotMap.try_emplace(botNames[0], MatchResultOneBot());
+    resultsByBotMap.try_emplace(botNames[1], MatchResultOneBot());
+    auto& r0 = resultsByBotMap[botNames[0]];
+    auto& r1 = resultsByBotMap[botNames[1]];
+
     json j;
     j["bot0name"] = botNames[0];
     j["bot1name"] = botNames[1];
-    j["bot0model"] = nnModelFiles[0];
-    j["bot1model"] = nnModelFiles[1];
-    auto& r0 = resultsByBotMap[botNames[0]];
-    auto& r1 = resultsByBotMap[botNames[1]];
+    j["bot0model"] = nnModelFilesByBot[0];
+    j["bot1model"] = nnModelFilesByBot[1];
     if(r0.win != r1.lose || r0.draw != r1.draw || r0.lose != r1.win)
       throw StringError("result of two bots not match");
     j["total"] = r0.win + r0.draw + r0.lose;
@@ -489,7 +465,6 @@ int MainCmds::match(const vector<string>& args) {
     }
   }
   NeuralNet::globalCleanup();
-  //ScoreValue::freeTables();
 
   if(sigReceived.load())
     logger.write("Exited cleanly after signal");
@@ -499,14 +474,19 @@ int MainCmds::match(const vector<string>& args) {
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
 
   auto avgtime = time_ms.count();
+
+  uint64_t cnt_moves = 0;
+  for(auto& pair: resultsByBotMap)
+    cnt_moves += pair.second.moves;
+
   if(cnt_moves != 0)
     avgtime /= cnt_moves;
+  avgtime = round(avgtime * 1000.0) / 1000.0;
 
   ostringstream out;
   out << "All cleaned up, quitting. Moves: " << cnt_moves << ", time : " << time.count()
       << " sec., average time : " << avgtime << " ms/move";
   logger.write(out.str());
 
-  // logger.write("All cleaned up, quitting");
   return 0;
 }

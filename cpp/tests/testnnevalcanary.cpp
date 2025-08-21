@@ -384,10 +384,13 @@ bool Tests::runBackendErrorTest(
   NNEvaluator* nnEval,
   NNEvaluator* nnEval32,
   Logger& logger,
-  int boardSize,
+  const std::string& boardSizeDataset,
   int maxBatchSizeCap,
   bool verbose,
   bool quickTest,
+  double policyOptimismForTest,
+  double pdaForTest,
+  double nnPolicyTemperatureForTest,
   bool& fp32BatchSuccessBuf,
   const string& referenceFileName) {
   int maxBatchSize = nnEval->getCurrentBatchSize();
@@ -425,23 +428,27 @@ bool Tests::runBackendErrorTest(
   };
 
   std::vector<BoardHistory> hists;
-  if(boardSize == 9)
+  if(boardSizeDataset == "9")
     hists = loadHists(TestCommon::getMultiGameSize9Data());
-  if(boardSize == 13)
+  else if(boardSizeDataset == "13")
     hists = loadHists(TestCommon::getMultiGameSize13Data());
-  if(boardSize == 19)
+  else if(boardSizeDataset == "19")
     hists = loadHists(TestCommon::getMultiGameSize19Data());
+  else
+    throw StringError("Unknown dataset to test gpu error on: " + boardSizeDataset);
 
   auto evalBoard = [&](NNEvaluator* nnE, const BoardHistory& hist) {
     Board board = hist.getRecentBoard(0);
     MiscNNInputParams nnInputParams;
-    nnInputParams.symmetry =
-      (int)(BoardHistory::getSituationRulesHash(board, hist, hist.presumedNextMovePla).hash0 & 7);
+    nnInputParams.symmetry = (int)(BoardHistory::getSituationRulesHash(board, hist, hist.presumedNextMovePla).hash0 & 7);
+    nnInputParams.policyOptimism = policyOptimismForTest;
+    nnInputParams.playoutDoublingAdvantage = pdaForTest;
+    nnInputParams.nnPolicyTemperature = (float)nnPolicyTemperatureForTest;
+
     NNResultBuf buf;
     bool skipCache = true;
-    //SGFMetadata sgfMeta = SGFMetadata::getProfile("preaz_5k");
-    //nnE->evaluate(board,hist,hist.presumedNextMovePla,&sgfMeta,nnInputParams,buf,skipCache);
-    nnE->evaluate(board, hist, hist.presumedNextMovePla, nnInputParams, buf, skipCache);
+    SGFMetadata sgfMeta = SGFMetadata::getProfile("preaz_5k");
+    nnE->evaluate(board, hist, hist.presumedNextMovePla, &sgfMeta, nnInputParams, buf, skipCache);
     return buf.result;
   };
 

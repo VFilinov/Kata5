@@ -628,7 +628,6 @@ int MainCmds::runownershipspeedtest(const vector<string>& args) {
   BoardHistory hist(board, nextPla, rules, 0);
 
   bot->setPosition(nextPla, board, hist);
-  bot->setAlwaysIncludeOwnerMap(true);
 
   double time;
   ClockTimer timer;

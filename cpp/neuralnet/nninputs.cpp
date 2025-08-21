@@ -641,7 +641,7 @@ Hash128 NNInputs::getHash(
 //===========================================================================================
 //INPUTSVERSION 97
 //===========================================================================================
-
+/*
 void NNInputs::fillRowV97(
   const Board& board, const BoardHistory& hist, Player nextPlayer,
   const MiscNNInputParams& nnInputParams,
@@ -711,7 +711,7 @@ void NNInputs::fillRowV97(
   rowGlobal[5] = (nextPlayer == P_BLACK ? -1 : 1);
 
 }
-
+*/
 
 //===========================================================================================
 //INPUTSVERSION 7
@@ -1282,15 +1282,23 @@ void NNInputs::fillRowV101(
 
   if (hist.rules.maxMoves != 0) {
     rowGlobal[30] = 1.0;
-    double boardArea = board.x_size * board.y_size;
-    double movenum = hist.getMovenum();
-    double maxmoves = hist.rules.maxMoves;
+    float boardArea = board.x_size * board.y_size;
+    float movenum = hist.getMovenum();
+    float maxmoves = hist.rules.maxMoves;
     rowGlobal[31] = maxmoves / boardArea;
     rowGlobal[32] = movenum / boardArea;
-    rowGlobal[33] = exp(-(maxmoves-movenum)/50.0);
-    rowGlobal[34] = exp(-(maxmoves-movenum)/15.0);
-    rowGlobal[35] = exp(-(maxmoves-movenum)/5.0);
-    rowGlobal[36] = exp(-(maxmoves-movenum)/1.5);
+    float val = exp(-(maxmoves-movenum)/50.0);
+    if (isfinite(val))
+      rowGlobal[33] = val;
+    val = exp(-(maxmoves-movenum)/15.0);
+    if (isfinite(val))
+      rowGlobal[34] = val;
+    val = exp(-(maxmoves-movenum)/5.0);
+    if (isfinite(val))
+      rowGlobal[35] = val;
+    val = exp(-(maxmoves-movenum)/1.5);
+    if (isfinite(val))
+      rowGlobal[36] = val;
     rowGlobal[37] = 2*((int(maxmoves-movenum))%2)-1;
   }
 

@@ -12,6 +12,7 @@ using namespace std;
 Loc PlayUtils::chooseRandomLegalMove(const Board& board, const BoardHistory& hist, Player pla, Rand& gameRand, Loc banMove) {
   int numLegalMoves = 0;
   Loc locs[Board::MAX_ARR_SIZE];
+  testAssert(pla == hist.presumedNextMovePla);
   for(Loc loc = 0; loc < Board::MAX_ARR_SIZE; loc++) {
     if(hist.isLegal(board,loc,pla) && loc != banMove) {
       locs[numLegalMoves] = loc;
@@ -28,6 +29,7 @@ Loc PlayUtils::chooseRandomLegalMove(const Board& board, const BoardHistory& his
 int PlayUtils::chooseRandomLegalMoves(const Board& board, const BoardHistory& hist, Player pla, Rand& gameRand, Loc* buf, int len) {
   int numLegalMoves = 0;
   Loc locs[Board::MAX_ARR_SIZE];
+  testAssert(pla == hist.presumedNextMovePla);
   for(Loc loc = 0; loc < Board::MAX_ARR_SIZE; loc++) {
     if(hist.isLegal(board,loc,pla)) {
       locs[numLegalMoves] = loc;
@@ -56,11 +58,11 @@ Loc PlayUtils::chooseRandomPolicyMove(
   int numLegalMoves = 0;
   double relProbs[NNPos::MAX_NN_POLICY_SIZE];
   int locs[NNPos::MAX_NN_POLICY_SIZE];
+  testAssert(pla == hist.presumedNextMovePla);
 
   int LegalPass = 0;
   double relProbPass = 0;
   double relProb;
-  int locsPass = Board::NULL_LOC;
 
   for(int pos = 0; pos<NNPos::MAX_NN_POLICY_SIZE; pos++) {
     Loc loc = NNPos::posToLoc(pos,board.x_size,board.y_size,nnXLen,nnYLen);
@@ -72,7 +74,6 @@ Loc PlayUtils::chooseRandomPolicyMove(
     relProb = policyProbs[pos];
 #endif
     if((loc == Board::PASS_LOC)) {
-      locsPass = loc;
       LegalPass = 1;
       relProbPass = relProb;
       if(!allowPass)
@@ -90,8 +91,8 @@ Loc PlayUtils::chooseRandomPolicyMove(
     double onlyBelowProb = 1.0;
     uint32_t n = Search::chooseIndexWithTemperature(gameRand, relProbs, numLegalMoves, temperature, onlyBelowProb, NULL);
     return locs[n];
-  } else if(LegalPass > 0 && relProbPass>0) {
-    return locsPass;
+  } else if(LegalPass > 0 && relProbPass>0 /*&& allowPass*/) {
+    return Board::NULL_LOC;
   }
   return Board::NULL_LOC;
 }
@@ -118,7 +119,8 @@ Loc PlayUtils::getGameInitializationMove(
   testAssert(nnXLen > 0 && nnXLen < 100); //Just a sanity check to make sure no other crazy values have snuck in
   testAssert(nnYLen > 0 && nnYLen < 100); //Just a sanity check to make sure no other crazy values have snuck in
   int policySize = NNPos::getPolicySize(nnXLen,nnYLen);
-  for(int movePos = 0; movePos<policySize; movePos++) {
+  testAssert(pla == hist.presumedNextMovePla);
+  for(int movePos = 0; movePos < policySize; movePos++) {
     Loc moveLoc = NNPos::posToLoc(movePos,board.x_size,board.y_size,nnXLen,nnYLen);
 #ifdef QUANTIZED_OUTPUT
     double policyProb = nnOutput->getPolicyProb(movePos);
@@ -155,14 +157,16 @@ void PlayUtils::initializeGameUsingPolicy(
   Rand& gameRand, 
   double avgPolicyInitMoveNum,
   double temperature,
-  bool is_gauss) {
+  double gauss_max) {
 
   NNResultBuf buf;
 
   // bool suppressPass = (pla == P_BLACK ? botB : botW)->searchParams.suppressPass;
   int numInitialMovesToPlay;
-  if(is_gauss) {
-    numInitialMovesToPlay = (int)floor((avgPolicyInitMoveNum + gameRand.nextGaussianTruncated(avgPolicyInitMoveNum))) - board.movenum;
+
+  if(gauss_max > 0.0 && gauss_max < avgPolicyInitMoveNum) {
+    double gauss_step = gameRand.nextGaussianTruncated(gauss_max);
+    numInitialMovesToPlay = (int)floor((avgPolicyInitMoveNum + gauss_step))/* - board.movenum*/;
   } else {
     const double randomInitMovenumEquToPolicyInit = 2.0;
     numInitialMovesToPlay = (int)floor(gameRand.nextExponential() * (avgPolicyInitMoveNum - randomInitMovenumEquToPolicyInit*board.movenum));
@@ -475,7 +479,7 @@ Rules PlayUtils::genRandomRules(Rand& rand) {
 }
 
 
-std::shared_ptr<NNOutput> PlayUtils::getFullSymmetryNNOutput(const Board& board, const BoardHistory& hist, Player pla, /*bool includeOwnerMap,*/ NNEvaluator* nnEval) {
+std::shared_ptr<NNOutput> PlayUtils::getFullSymmetryNNOutput(const Board& board, const BoardHistory& hist, Player pla, NNEvaluator* nnEval) {
   vector<std::shared_ptr<NNOutput>> ptrs;
   Board b = board;
   for(int sym = 0; sym<SymmetryHelpers::NUM_SYMMETRIES; sym++) {
@@ -483,7 +487,7 @@ std::shared_ptr<NNOutput> PlayUtils::getFullSymmetryNNOutput(const Board& board,
     nnInputParams.symmetry = sym;
     NNResultBuf buf;
     bool skipCache = true; //Always ignore cache so that we use the desired symmetry
-    nnEval->evaluate(b,hist,pla,nnInputParams,buf,skipCache/*,includeOwnerMap*/);
+    nnEval->evaluate(b,hist,pla,nnInputParams,buf,skipCache);
     ptrs.push_back(std::move(buf.result));
   }
   std::shared_ptr<NNOutput> result(new NNOutput(ptrs));

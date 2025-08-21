@@ -58,6 +58,23 @@ testgpuerror : Print the average error of the neural net between current config 
 
 )%%" << endl;
 }
+/*
+runtests : Test important board algorithms and datastructures
+runnnlayertests : Test a few subcomponents of the current neural net backend
+
+runnnontinyboardtest : Run neural net on a tiny board and dump result to stdout
+runnnsymmetriestest : Run neural net on a hardcoded rectangle board and dump symmetries result
+runownershiptests : Run neural net search on some hardcoded positions and print avg ownership
+
+runoutputtests : Run a bunch of things and dump details to stdout
+runsearchtests : Run a bunch of things using a neural net and dump details to stdout
+runsearchtestsv3 : Run a bunch more things using a neural net and dump details to stdout
+runsearchtestsv8 : Run a bunch more things using a neural net and dump details to stdout
+runsearchtestsv9 : Run a bunch more things using a neural net and dump details to stdout
+runselfplayinittests : Run some tests involving selfplay training init using a neural net and dump details to stdout
+runsekitrainwritetests : Run some tests involving seki train output
+
+*/
 
 static int handleSubcommand(const string& subcommand, const vector<string>& args) {
   vector<string> subArgs(args.begin()+1,args.end());
@@ -87,6 +104,44 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::selfplay(subArgs);
   else if(subcommand == "testgpuerror")
     return MainCmds::testgpuerror(subArgs);
+  /*
+  else if(subcommand == "runtests")
+    return MainCmds::runtests(subArgs);
+  else if(subcommand == "runnnlayertests")
+    return MainCmds::runnnlayertests(subArgs);
+  else if(subcommand == "runnnontinyboardtest")
+    return MainCmds::runnnontinyboardtest(subArgs);
+  else if(subcommand == "runnnsymmetriestest")
+    return MainCmds::runnnsymmetriestest(subArgs);
+  else if(subcommand == "runownershiptests")
+    return MainCmds::runownershiptests(subArgs);
+  else if(subcommand == "runoutputtests")
+    return MainCmds::runoutputtests(subArgs);
+  else if(subcommand == "runsearchtests")
+    return MainCmds::runsearchtests(subArgs);
+  else if(subcommand == "runsearchtestsv3")
+    return MainCmds::runsearchtestsv3(subArgs);
+  else if(subcommand == "runsearchtestsv8")
+    return MainCmds::runsearchtestsv8(subArgs);
+  else if(subcommand == "runsearchtestsv9")
+    return MainCmds::runsearchtestsv9(subArgs);
+  else if(subcommand == "runselfplayinittests")
+    return MainCmds::runselfplayinittests(subArgs);
+  else if(subcommand == "runselfplayinitstattests")
+    return MainCmds::runselfplayinitstattests(subArgs);
+  else if(subcommand == "runsekitrainwritetests")
+    return MainCmds::runsekitrainwritetests(subArgs);
+  else if(subcommand == "runnnonmanyposestest")
+    return MainCmds::runnnonmanyposestest(subArgs);
+  else if(subcommand == "runnnbatchingtest")
+    return MainCmds::runnnbatchingtest(subArgs);
+  else if(subcommand == "runtinynntests")
+    return MainCmds::runtinynntests(subArgs);
+  else if(subcommand == "runnnevalcanarytests")
+    return MainCmds::runnnevalcanarytests(subArgs);
+  else if(subcommand == "runconfigtests")
+    return MainCmds::runconfigtests(subArgs);
+  */
   else if(subcommand == "samplesgfs")
     return MainCmds::samplesgfs(subArgs);
   else if(subcommand == "dataminesgfs")
@@ -105,6 +160,8 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::viewstartposes(subArgs);
   else if(subcommand == "checksgfhintpolicy")
     return MainCmds::checksgfhintpolicy(subArgs);
+  else if(subcommand == "genposesfromselfplayinit")
+    return MainCmds::genposesfromselfplayinit(subArgs);
   else if(subcommand == "demoplay")
     return MainCmds::demoplay(subArgs);
   //else if(subcommand == "writetrainingdata")
@@ -113,6 +170,12 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::sampleinitializations(subArgs);
   else if(subcommand == "evalrandominits")
     return MainCmds::evalrandominits(subArgs);
+  //else if(subcommand == "runbeginsearchspeedtest")
+  //  return MainCmds::runbeginsearchspeedtest(subArgs);
+  //else if(subcommand == "runownershipspeedtest")
+  //  return MainCmds::runownershipspeedtest(subArgs);
+  //else if(subcommand == "runsleeptest")
+  //  return MainCmds::runsleeptest(subArgs);
   else if(subcommand == "printclockinfo")
     return MainCmds::printclockinfo(subArgs);
   else if(subcommand == "sandbox")
@@ -203,11 +266,11 @@ int main(int argc, const char* const* argv) {
 
 
 string Version::getKataGoVersion() {
-  return string("1.15.3");
+  return string("1.16.3");
 }
 
 string Version::getKataGoVersionForHelp() {
-  return string("KataGo v1.15.3.5 (modified by Vladimir Filinov)");
+  return string("KataGo v1.16.3.1 (modified by Vladimir Filinov)");
 }
 
 string Version::getKataGoVersionFullInfo() {
@@ -226,6 +289,13 @@ string Version::getKataGoVersionFullInfo() {
 #endif
 #elif defined(USE_TENSORRT_BACKEND)
   out << "Using TensorRT backend" << endl;
+  #if defined(TENSORRT_VERSION)
+  #define STRINGIFY(x) #x
+  #define STRINGIFY2(x) STRINGIFY(x)
+  out << "Compiled with TENSORRT version " << STRINGIFY2(TENSORRT_VERSION) << endl;
+  #endif
+#elif defined(USE_METAL_BACKEND)
+  out << "Using Metal backend" << endl;
 #elif defined(USE_OPENCL_BACKEND)
   out << "Using OpenCL backend" << endl;
 #elif defined(USE_EIGEN_BACKEND)
@@ -275,6 +345,8 @@ string Version::getGitRevisionWithBackend() {
   s += "-cuda";
 #elif defined(USE_TENSORRT_BACKEND)
   s += "-trt";
+#elif defined(USE_METAL_BACKEND)
+  s += "-metal";
 #elif defined(USE_OPENCL_BACKEND)
   s += "-opencl";
 #elif defined(USE_EIGEN_BACKEND)

@@ -125,13 +125,16 @@ struct Sgf {
     Sgf::PositionSample previousPosition(double newWeight) const;
     bool hasPreviousPositions(int numPrevious) const;
 
+    bool tryGetCurrentBoardHistory(const Rules& rules, Player& nextPlaToMove, BoardHistory& hist) const;
+
     BoardHistory getCurrentBoardHistory(const Rules& rules, Player& nextPlaToMove) const;
 
     int64_t getCurrentTurnNumber() const;
 
     //For the moment, only used in testing since it does extra consistency checks.
     //If we need a version to be used in "prod", we could make an efficient version maybe as operator==.
-    bool isEqualForTesting(const PositionSample& other, bool checkNumCaptures, bool checkSimpleKo) const;
+    bool isEqualForTesting(const PositionSample& other) const;
+    static void writePosOfHist(PositionSample& sampleBuf, const BoardHistory& hist, Player nextPla);
   };
 
   //Loads SGF all unique positions in ALL branches of that SGF.
@@ -269,7 +272,7 @@ namespace WriteSgf {
 
   //If hist is a finished game, print the result to out along with SGF tag, else do nothing
   void printGameResult(std::ostream& out, const BoardHistory& hist);
-  //Get the game result without a surrounding sgf tag
+  // Get the game result without a surrounding sgf tag
   std::string gameResultNoSgfTag(const BoardHistory& hist);
 }
 

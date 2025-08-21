@@ -581,9 +581,7 @@ void Search::selectBestChildToDescend(
     }
   }
   /*
-  if(
-    totalChildEdgeVisits >= 2 && searchParams.enableMorePassingHacks &&
-    thread.history.passWouldEndPhase(thread.board, thread.pla)) {
+  if(totalChildEdgeVisits >= 2 && searchParams.suppressPass ) { // && thread.history.passWouldEndPhase(thread.board, thread.pla)
     bool hasPassMove = false;
     bool hasNonPassMove = false;
     for(int i = 0; i < childrenCapacity; i++) {
@@ -601,7 +599,9 @@ void Search::selectBestChildToDescend(
       bestChildIdx = numChildrenFound;
       bestChildMoveLoc = Board::PASS_LOC;
       countEdgeVisit = false;
-    } else if(!hasNonPassMove && bestChildMoveLoc == Board::PASS_LOC && bestNewMoveLoc != Board::PASS_LOC) {
+    } 
+    else
+    if(!hasNonPassMove && bestChildMoveLoc == Board::PASS_LOC && bestNewMoveLoc != Board::PASS_LOC) {
       bestChildIdx = numChildrenFound;
       bestChildMoveLoc = bestNewMoveLoc;
       countEdgeVisit = false;

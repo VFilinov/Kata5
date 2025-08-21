@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <memory>
 
 using namespace std;
 
@@ -97,7 +98,7 @@ int MainCmds::selfplay(const vector<string>& args) {
   const string gameSeedBase = Global::uint64ToHexString(seedRand.nextUInt64());
 
   //Width and height of the board to use when writing data, typically 19
-  const int dataBoardLen = cfg.getInt("dataBoardLen",3,37);
+  const int dataBoardLen = cfg.getInt("dataBoardLen",3,Board::MAX_LEN);
   const int inputsVersion = cfg.contains("inputsVersion") ? cfg.getInt("inputsVersion",0,10000):NNModelVersion::getInputsVersion(NNModelVersion::defaultModelVersion);
   //Max number of games that we will allow to be queued up and not written out
   const int maxDataQueueSize = cfg.getInt("maxDataQueueSize",1,1000000);
@@ -114,9 +115,9 @@ int MainCmds::selfplay(const vector<string>& args) {
   PlaySettings playSettings = PlaySettings::loadForSelfplay(cfg);
   playSettings.fileOpenings = openingsFile;
   
-  GameRunner* gameRunner = new GameRunner(cfg, playSettings, logger);
+  auto gameRunner = std::make_unique<GameRunner>(cfg, playSettings, logger);
   bool autoCleanupAllButLatestIfUnused = true;
-  SelfplayManager* manager = new SelfplayManager(maxDataQueueSize, &logger, logGamesEvery, autoCleanupAllButLatestIfUnused);
+  auto manager = std::make_unique<SelfplayManager>(maxDataQueueSize, &logger, logGamesEvery, autoCleanupAllButLatestIfUnused);
 
   const int minBoardXSizeUsed = gameRunner->getGameInitializer()->getMinBoardXSize();
   const int minBoardYSizeUsed = gameRunner->getGameInitializer()->getMinBoardYSize();
@@ -252,7 +253,7 @@ int MainCmds::selfplay(const vector<string>& args) {
     &gameSeedBase,
     &logThreadsEvery
   ](int threadIdx) {
-    auto shouldStopFunc = []() {
+    auto shouldStopFunc = []() noexcept {
       return shouldStop.load();
     };
     WaitableFlag* shouldPause = nullptr;
@@ -383,11 +384,11 @@ int MainCmds::selfplay(const vector<string>& args) {
   modelLoadLoopThread.join();
   uint64_t cnt_moves = manager->getTotalNumMovesProcessed();
   //At this point, nothing else except possibly data write loops are running, within the selfplay manager.
-  delete manager;
+  manager.reset();
 
   //Delete and clean up everything else
   NeuralNet::globalCleanup();
-  delete gameRunner;
+  gameRunner.reset();
 
   if(sigReceived.load())
     logger.write("Exited cleanly after signal");
@@ -399,6 +400,7 @@ int MainCmds::selfplay(const vector<string>& args) {
   auto avgtime = time_ms.count();
   if(cnt_moves != 0)
     avgtime /= cnt_moves;
+  avgtime = round(avgtime * 1000.0) / 1000.0;
 
   ostringstream out;
   out << "All cleaned up, quitting. Moves: " << cnt_moves << ", time : " << time.count() << " sec., average time : " << avgtime  << " ms/move";

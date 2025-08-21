@@ -9,6 +9,27 @@
 #include "../core/rand.h"
 #include "../core/test.h"
 
+std::string getCurrentTimeString() {
+  auto now = std::chrono::system_clock::now();
+
+  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+
+  std::tm now_tm;
+#if defined(_MSC_VER)  // MSVC (Visual Studio)
+  localtime_s(&now_tm, &now_time_t);
+#else  // GCC/Clang
+  localtime_r(&now_time_t, &now_tm);
+#endif
+
+  auto duration = now.time_since_epoch();
+  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration) % 1000;
+
+  std::ostringstream oss;
+  oss << std::put_time(&now_tm, "%Y-%m-%d-%H-%M-%S");
+  oss << '-' << std::setfill('0') << std::setw(3) << millis.count();
+  return oss.str();
+}
+
 time_t DateTime::getNow() {
   time_t time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
   return time;
@@ -65,7 +86,6 @@ void DateTime::writeTimeToStream(std::ostream& out, const char* fmt, time_t time
   std::tm tm = localTime(time);
   out << std::put_time(&tm, fmt);
 }
-
 
 //---------------------------------------------------------------------------------
 

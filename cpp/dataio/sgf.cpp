@@ -3,6 +3,7 @@
 #include "../core/fileutils.h"
 #include "../core/sha2.h"
 #include "../dataio/files.h"
+#include "../program/playutils.h"
 
 #include "../external/nlohmann_json/json.hpp"
 
@@ -795,19 +796,21 @@ void Sgf::iterAllPositionsHelper(
       samplePositionHelper(board,hist,nextPla,sampleBuf,uniqueHashes,requireUnique,hashComments,hashParent,/*flipIfPassOrWFirst,*/allowGameOver,comments,f);
     }
 
-    //Handle placements
-    if(nodes[i]->hasPlacements()) {
+    Color plColor = nodes[i]->getPLSpecifiedColor();
+
+    // Handle placements
+    if(nodes[i]->hasPlacements() || (plColor != C_EMPTY && plColor != nextPla)) {
       buf.clear();
       nodes[i]->accumPlacements(buf,xSize,ySize);
+      int netStonesAdded = 0;
       if(buf.size() > 0) {
-        int netStonesAdded = 0;
-        for(size_t j = 0; j<buf.size(); j++) {
+        for(size_t j = 0; j < buf.size(); j++) {
           if(board.colors[buf[j].loc] != C_EMPTY && buf[j].pla == C_EMPTY)
             netStonesAdded--;
           if(board.colors[buf[j].loc] == C_EMPTY && buf[j].pla != C_EMPTY)
             netStonesAdded++;
         }
-        /*bool suc = board.setStonesFailIfNoLibs(buf);
+        bool suc = board.setStones(buf);
         if(!suc) {
           ostringstream trace;
           for(size_t s = 0; s < variationTraceNodesBranch.size(); s++) {
@@ -816,13 +819,15 @@ void Sgf::iterAllPositionsHelper(
           }
           trace << "forward " << i;
 
-          throw StringError(
-            "Illegal placements in " + fileName + " SGF trace (branches 0-indexed): " + trace.str()
-          );
-        }*/
+          throw StringError("Illegal placements in " + fileName + " SGF trace (branches 0-indexed): " + trace.str());
+        }
+      }
+
+      if(buf.size() > 0 || (plColor != C_EMPTY && plColor != nextPla)) {
 
         //board.clearSimpleKoLoc();
-        //Clear history any time placements happen, but make sure we track the initial turn number.
+
+        // Clear history any time placements or player change happen, but make sure we track the initial turn number.
         int64_t initialTurnNumber = hist.initialTurnNumber;
         initialTurnNumber += (int64_t)hist.moveHistory.size();
 
@@ -835,7 +840,10 @@ void Sgf::iterAllPositionsHelper(
         if(board.numStonesOnBoard() > initialTurnNumber)
           initialTurnNumber = board.numStonesOnBoard();
 
-        hist.clear(board, nextPla, rules /*, 0*/);
+        if(plColor != C_EMPTY && plColor != nextPla) {
+          nextPla = plColor;
+        }
+        hist.clear(board, nextPla, rules);
         hist.setInitialTurnNumber(initialTurnNumber);
       }
       samplePositionHelper(board,hist,nextPla,sampleBuf,uniqueHashes,requireUnique,hashComments,hashParent,/*flipIfPassOrWFirst,*/allowGameOver,comments,f);
@@ -860,7 +868,7 @@ void Sgf::iterAllPositionsHelper(
         // trace << Location::toString(buf[j].loc,board) << endl;
 
         throw StringError(
-          "Illegal move in " + fileName + " effective turn " + Global::int64ToString(j+hist.initialTurnNumber) + " move " +
+          "Illegal move in " + fileName + " effective turn " + Global::int64ToString((int64_t)(hist.moveHistory.size())+hist.initialTurnNumber) + " move " +
           Location::toString(buf[j].loc, board.x_size, board.y_size) + " SGF trace (branches 0-indexed): " + trace.str()
         );
       }
@@ -890,6 +898,38 @@ void Sgf::iterAllPositionsHelper(
     assert(variationTraceNodesBranch.size() > 0);
     variationTraceNodesBranch.erase(variationTraceNodesBranch.begin()+(variationTraceNodesBranch.size()-1));
   }
+}
+
+void Sgf::PositionSample::writePosOfHist(PositionSample& sampleBuf, const BoardHistory& hist, Player nextPla) {
+  //Snap the position 5 turns ago so as to include 5 moves of history.
+  assert(BoardHistory::NUM_RECENT_BOARDS > 5);
+  int turnsAgoToSnap = 0;
+  while(turnsAgoToSnap < 5) {
+    if(turnsAgoToSnap >= hist.moveHistory.size())
+      break;
+    //If a player played twice in a row, then instead snap so as not to have a move history
+    //with a double move by the same player.
+    if(turnsAgoToSnap > 0 && hist.moveHistory[hist.moveHistory.size() - turnsAgoToSnap - 1].pla == hist.moveHistory[hist.moveHistory.size() - turnsAgoToSnap].pla)
+      break;
+    if(turnsAgoToSnap == 0 && hist.moveHistory[hist.moveHistory.size() - turnsAgoToSnap - 1].pla == nextPla)
+      break;
+    turnsAgoToSnap++;
+  }
+  if(hist.moveHistory.size() > 0x3FFFFFFF)
+    throw StringError("hist has too many moves");
+  int64_t startTurnIdx = (int64_t)hist.moveHistory.size() - turnsAgoToSnap;
+
+  sampleBuf.board = hist.getRecentBoard(turnsAgoToSnap);
+  if(startTurnIdx < hist.moveHistory.size())
+    sampleBuf.nextPla = hist.moveHistory[startTurnIdx].pla;
+  else
+    sampleBuf.nextPla = nextPla;
+  sampleBuf.moves.clear();
+  for(int64_t i = startTurnIdx; i<(int64_t)hist.moveHistory.size(); i++)
+    sampleBuf.moves.push_back(hist.moveHistory[i]);
+  sampleBuf.initialTurnNumber = hist.initialTurnNumber + startTurnIdx;
+  sampleBuf.hintLoc = Board::NULL_LOC;
+  sampleBuf.weight = 1.0;
 }
 
 void Sgf::samplePositionHelper(
@@ -1136,12 +1176,30 @@ BoardHistory Sgf::PositionSample::getCurrentBoardHistory(const Rules& rules, Pla
   return hist;
 }
 
+bool Sgf::PositionSample::tryGetCurrentBoardHistory(const Rules& rules, Player& nextPlaToMove, BoardHistory& hist)
+  const {
+  int encorePhase = 0;
+  Player pla = nextPla;
+  Board boardCopy = board;
+  hist.clear(boardCopy, pla, rules);
+  int numSampleMoves = (int)moves.size();
+  for(int i = 0; i < numSampleMoves; i++) {
+    if(!hist.isLegal(boardCopy, moves[i].loc, moves[i].pla))
+      return false;
+    assert(moves[i].pla == pla);
+    hist.makeBoardMoveAssumeLegal(boardCopy, moves[i].loc, moves[i].pla);
+    pla = getOpp(pla);
+  }
+  nextPlaToMove = pla;
+  return true;
+}
+
 int64_t Sgf::PositionSample::getCurrentTurnNumber() const {
   return std::max((int64_t)0, initialTurnNumber + (int64_t)moves.size());
 }
 
-bool Sgf::PositionSample::isEqualForTesting(const Sgf::PositionSample& other, bool checkNumCaptures, bool checkSimpleKo) const {
-  if(!board.isEqualForTesting(other.board /*, checkNumCaptures, checkSimpleKo*/))
+bool Sgf::PositionSample::isEqualForTesting(const Sgf::PositionSample& other) const {
+  if(!board.isEqualForTesting(other.board))
     return false;
   if(nextPla != other.nextPla)
     return false;
@@ -1659,10 +1717,10 @@ void CompactSgf::setupInitialBoardAndHist(const Rules& initialRules, Board& boar
     nextPla = moves[0].pla;
 
   board = Board(xSize,ySize);
-  /* bool suc = board.setStonesFailIfNoLibs(placements);
+  bool suc = board.setStones(placements);
   if(!suc)
-    throw StringError("setupInitialBoardAndHist: initial board position contains invalid stones or zero-liberty stones");*/
-  hist = BoardHistory(board, nextPla, initialRules /*, 0*/);
+    throw StringError("setupInitialBoardAndHist: initial board position contains invalid stones");
+  hist = BoardHistory(board, nextPla, initialRules);
   if(hist.initialTurnNumber < board.numStonesOnBoard())
     hist.initialTurnNumber = board.numStonesOnBoard();
 }

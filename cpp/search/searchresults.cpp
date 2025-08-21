@@ -1659,21 +1659,23 @@ bool Search::getAnalysisJson(
 
   // Raw policy prior
   if(includePolicy) {
-    float policyProbs[NNPos::MAX_NN_POLICY_SIZE];
-    bool suc = getPolicy(policyProbs);
-    if(!suc)
-      return false;
-    json policy = json::array();
-    for(int y = 0; y < board.y_size; y++) {
-      for(int x = 0; x < board.x_size; x++) {
-        int pos = NNPos::xyToPos(x, y, nnXLen);
-        policy.push_back(Global::roundDynamic(policyProbs[pos],OUTPUT_PRECISION));
+    {
+      float policyProbs[NNPos::MAX_NN_POLICY_SIZE];
+      bool suc = getPolicy(policyProbs);
+      if(!suc)
+        return false;
+      json policy = json::array();
+      for(int y = 0; y < board.y_size; y++) {
+        for(int x = 0; x < board.x_size; x++) {
+          int pos = NNPos::xyToPos(x, y, nnXLen);
+          policy.push_back(Global::roundDynamic(policyProbs[pos],OUTPUT_PRECISION));
+        }
       }
-    }
 
-    int passPos = NNPos::locToPos(Board::PASS_LOC, board.x_size, nnXLen, nnYLen);
-    policy.push_back(Global::roundDynamic(policyProbs[passPos],OUTPUT_PRECISION));
-    ret["policy"] = policy;
+      int passPos = NNPos::locToPos(Board::PASS_LOC, board.x_size, nnXLen, nnYLen);
+      policy.push_back(Global::roundDynamic(policyProbs[passPos],OUTPUT_PRECISION));
+      ret["policy"] = policy;
+    }
 
     if(humanOutput != NULL) {
 #ifndef QUANTIZED_OUTPUT
@@ -1786,4 +1788,34 @@ bool Search::getPrunedNodeValues(const SearchNode* nodePtr, ReportedSearchValues
     node.stats.visits.load(std::memory_order_acquire)
   );
   return true;
+}
+
+void Search::debugPrintChildrenSummary(std::ostream& out, const SearchNode& node, NNOutput* nnOutput) {
+  SearchNodeState nodeState = node.state.load(std::memory_order_acquire);
+  int numChildren = 0;
+  ConstSearchNodeChildrenReference children = node.getChildren(nodeState);
+  int childrenCapacity = children.getCapacity();
+  out << "childrenCapacity " << childrenCapacity << endl;
+#ifndef QUANTIZED_OUTPUT
+  const float* policyProbs = nnOutput->getPolicyProbsMaybeNoised();
+#endif
+
+  for(int i = 0; i<childrenCapacity; i++) {
+    const SearchChildPointer& childPointer = children[i];
+    const SearchNode* child = childPointer.getIfAllocated();
+    if(child == NULL)
+      break;
+    numChildren += 1;
+    Loc moveLoc = childPointer.getMoveLocRelaxed();
+    int movePos = getPos(moveLoc);
+#ifdef QUANTIZED_OUTPUT
+    float nnPolicyProb = nnOutput->getPolicyProbMaybeNoised(movePos);
+#else
+    float nnPolicyProb = policyProbs[movePos];
+#endif
+    int64_t edgeVisits = childPointer.getEdgeVisits();
+    double childWeight = child->stats.getChildWeight(edgeVisits);
+    out << i << " " << Location::toString(moveLoc,rootBoard) << " " << nnPolicyProb << " " << edgeVisits << " " << childWeight << endl;
+  }
+  out << "numChildren " << numChildren << endl;
 }

@@ -20,7 +20,7 @@ PlaySettings::PlaySettings()
     recordTimePerMove(false),
     initGamesWithAvgDist(false), 
     addBalanceMoveProb(100.0),
-    policyInitGaussMoveNum(false),
+    policyInitGaussMoveNum(0.0),
     policyInitProb(0.0)
 {}
 PlaySettings::~PlaySettings()
@@ -36,8 +36,6 @@ PlaySettings PlaySettings::loadForMatch(ConfigParser& cfg) {
     playSettings.resignConsecTurns = cfg.getInt("resignConsecTurns", 1, 100);
   if(cfg.contains("initGamesWithPolicy"))
     playSettings.initGamesWithPolicy = cfg.getBool("initGamesWithPolicy");
-  if(cfg.contains("policyInitGaussMoveNum"))
-    playSettings.policyInitGaussMoveNum = cfg.getBool("policyInitGaussMoveNum");
   if(cfg.contains("allowEarlyDraw"))
       playSettings.allowEarlyDraw = cfg.getBool("allowEarlyDraw");
   if(cfg.contains("earlyDrawThreshold"))
@@ -52,6 +50,8 @@ PlaySettings PlaySettings::loadForMatch(ConfigParser& cfg) {
     playSettings.logGenerate = cfg.getBool("logGenerate");
   if(cfg.contains("policyInitAvgMoveNum"))
     playSettings.policyInitAvgMoveNum = cfg.getDouble("policyInitAvgMoveNum", 0.0, 100.0);
+  if(cfg.contains("policyInitGaussMoveNum"))
+    playSettings.policyInitGaussMoveNum = cfg.getDouble("policyInitGaussMoveNum", 0.0, 100.0);
   if(cfg.contains("startPosesPolicyInitAvgMoveNum"))
     playSettings.startPosesPolicyInitAvgMoveNum = cfg.getDouble("startPosesPolicyInitAvgMoveNum", 0.0, 100.0);
   if(cfg.contains("policyInitAreaTemperature"))
@@ -79,6 +79,40 @@ PlaySettings PlaySettings::loadForGatekeeper(ConfigParser& cfg) {
     playSettings.resignThreshold = cfg.getDouble("resignThreshold", -1.0, 0.0);  // Threshold on [-1,1], regardless of winLossUtilityFactor
   if(cfg.contains("resignConsecTurns"))
     playSettings.resignConsecTurns = cfg.getInt("resignConsecTurns", 1, 100);
+
+  if(cfg.contains("initGamesWithPolicy"))
+    playSettings.initGamesWithPolicy = cfg.getBool("initGamesWithPolicy");
+  if(cfg.contains("allowEarlyDraw"))
+    playSettings.allowEarlyDraw = cfg.getBool("allowEarlyDraw");
+  if(cfg.contains("earlyDrawThreshold"))
+    playSettings.earlyDrawThreshold = cfg.getDouble("earlyDrawThreshold", 0.8, 1.0);
+  if(cfg.contains("earlyDrawConsecTurns"))
+    playSettings.earlyDrawConsecTurns = cfg.getInt("earlyDrawConsecTurns", 1, 100);
+  if(cfg.contains("earlyDrawProbSelfplay"))
+    playSettings.earlyDrawProbSelfplay = cfg.getDouble("earlyDrawProbSelfplay", 0.0, 1.0);
+  if(cfg.contains("logOpenings"))
+    playSettings.logOpenings = cfg.getBool("logOpenings");
+  if(cfg.contains("logGenerate"))
+    playSettings.logGenerate = cfg.getBool("logGenerate");
+  if(cfg.contains("policyInitAvgMoveNum"))
+    playSettings.policyInitAvgMoveNum = cfg.getDouble("policyInitAvgMoveNum", 0.0, 100.0);
+  if(cfg.contains("policyInitGaussMoveNum"))
+    playSettings.policyInitGaussMoveNum = cfg.getDouble("policyInitGaussMoveNum", 0.0, 100.0);
+  if(cfg.contains("startPosesPolicyInitAvgMoveNum"))
+    playSettings.startPosesPolicyInitAvgMoveNum = cfg.getDouble("startPosesPolicyInitAvgMoveNum", 0.0, 100.0);
+  if(cfg.contains("policyInitAreaTemperature"))
+    playSettings.policyInitAreaTemperature = cfg.getDouble("policyInitAreaTemperature", 0.1, 5.0);
+  if(cfg.contains("maxTryTimes"))
+    playSettings.maxTryTimes = cfg.getInt("maxTryTimes", 0, 1000);
+  if(cfg.contains("initGamesWithAvgDist"))
+    playSettings.initGamesWithAvgDist = cfg.getBool("initGamesWithAvgDist");
+  if(cfg.contains("addBalanceMoveProb"))
+    playSettings.addBalanceMoveProb = cfg.getDouble("addBalanceMoveProb", 0.0, 100.0);
+  if(cfg.contains("extraTimeLog") && cfg.getBool("extraTimeLog"))
+    extra_time_log = true;
+  if(cfg.contains("policyInitProb"))
+    playSettings.policyInitProb = cfg.getDouble("policyInitProb", 0.0, 100.0);
+
   return playSettings;
 }
 
@@ -103,7 +137,7 @@ PlaySettings PlaySettings::loadForSelfplay(ConfigParser& cfg) {
   if(cfg.contains("policyInitAreaTemperature"))
     playSettings.policyInitAreaTemperature = cfg.getDouble("policyInitAreaTemperature", 0.1, 5.0);
   if(cfg.contains("policyInitGaussMoveNum"))
-    playSettings.policyInitGaussMoveNum = cfg.getBool("policyInitGaussMoveNum");
+    playSettings.policyInitGaussMoveNum = cfg.getDouble("policyInitGaussMoveNum", 0.0, 100.0);
   if(cfg.contains("maxTryTimes"))
     playSettings.maxTryTimes = cfg.getInt("maxTryTimes", 0, 1000);
   if(cfg.contains("initGamesWithAvgDist"))

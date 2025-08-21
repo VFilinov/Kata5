@@ -5,6 +5,8 @@
 #include <ctime>
 #include <iostream>
 
+std::string getCurrentTimeString();
+
 namespace DateTime {
   //Get the current time
   time_t getNow();

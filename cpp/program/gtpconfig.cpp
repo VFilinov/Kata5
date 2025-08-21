@@ -2,6 +2,22 @@
 
 using namespace std;
 
+/*
+#== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+#Rules
+#== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+#This section configures the scoring and playing rules.Rules can also be
+#changed mid - run by issuing custom GTP commands.
+#
+#See https:  // lightvector.github.io/KataGo/rules.html for rules details.
+#
+#See https:  // github.com/lightvector/KataGo/blob/master/docs/GTP_Extensions.md
+#for GTP commands.
+#extension for 5 - row games - VCNRules and Rules::basicRule
+
+$$BASIC_RULE
+*/
+
 static const string gtpBasePart1 = R"%%(
 # Config for KataGo C++ GTP engine, i.e. "./katago.exe gtp"
 
@@ -69,21 +85,6 @@ logSearchInfoForChosenMove = false
 # analysisWideRootNoise = 0.04
 
 # ===========================================================================
-# Rules
-# ===========================================================================
-# This section configures the scoring and playing rules. Rules can also be
-# changed mid-run by issuing custom GTP commands.
-#
-# See https://lightvector.github.io/KataGo/rules.html for rules details.
-#
-# See https://github.com/lightvector/KataGo/blob/master/docs/GTP_Extensions.md
-# for GTP commands.
-# extension for 5-row games - VCNRules and Rules::basicRule
-
-$$BASIC_RULE
-
-
-# ===========================================================================
 # Bot behavior
 # ===========================================================================
 
@@ -135,7 +136,7 @@ resignConsecTurns = 3
 # Passing
 # ------------------------------
 # Make the bot will suppress pass  Uncomment and set to true to enable.
-# suppressPass = false
+# suppressPass = true
 
 # ------------------------------
 # Miscellaneous behavior
@@ -342,6 +343,7 @@ string GTPConfig::makeConfig(
     config.replace(pos, key.size(), replacement);
   };
 
+  /*
   if(rules.basicRule == Rules::BASICRULE_FREESTYLE)
     replace("$$BASIC_RULE", "basicRule = FREESTYLE  # options: FREESTYLE, STANDARD, RENJU");
   else if(rules.basicRule == Rules::BASICRULE_STANDARD)
@@ -351,7 +353,7 @@ string GTPConfig::makeConfig(
   else {
     ASSERT_UNREACHABLE;
   }
-
+  */
 
   if(maxVisits < ((int64_t)1 << 50)) replace("$$MAX_VISITS", "maxVisits = " + Global::int64ToString(maxVisits));
   else                               replace("$$MAX_VISITS", "# maxVisits = 500");

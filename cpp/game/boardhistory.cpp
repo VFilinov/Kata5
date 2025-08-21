@@ -191,7 +191,8 @@ const Board& BoardHistory::getRecentBoard(int numMovesAgo) const {
   return recentBoards[idx];
 }
 
-void BoardHistory::setWinnerByResignation(Player pla) {  isGameFinished = true;
+void BoardHistory::setWinnerByResignation(Player pla) {
+  isGameFinished = true;
   isNoResult = false;
   isResignation = true;
   winner = pla;
@@ -199,13 +200,16 @@ void BoardHistory::setWinnerByResignation(Player pla) {  isGameFinished = true;
 
 void BoardHistory::setWinner(Player pla) {
   isGameFinished = true;
-  isNoResult = false;
+  isNoResult = (pla==C_EMPTY);
   isResignation = false;
   winner = pla;
 }
 
 bool BoardHistory::isLegal(const Board& board, Loc moveLoc, Player movePla) const {
-  if(!board.isLegal(moveLoc,movePla))
+  if(movePla != presumedNextMovePla)
+    return false;
+
+  if(!board.isLegal(moveLoc, movePla))
     return false;
 
   return true;
@@ -216,10 +220,16 @@ int64_t BoardHistory::getCurrentTurnNumber() const {
 }
 
 bool BoardHistory::isLegalTolerant(const Board& board, Loc moveLoc, Player movePla) const {
+  // Allow either side to move during tolerant play, but still check that a player is specified
+  if(movePla != P_BLACK && movePla != P_WHITE)
+    return false;
   return board.isLegal(moveLoc, movePla);
 }
 bool BoardHistory::makeBoardMoveTolerant(Board& board, Loc moveLoc, Player movePla) {
-  if(!board.isLegal(moveLoc,movePla))
+  // Allow either side to move during tolerant play, but still check that a player is specified
+  if(movePla != P_BLACK && movePla != P_WHITE)
+    return false;
+  if(!board.isLegal(moveLoc, movePla))
     return false;
   makeBoardMoveAssumeLegal(board,moveLoc,movePla);
   return true;
@@ -251,12 +261,14 @@ void BoardHistory::makeBoardMoveAssumeLegal(Board& board, Loc moveLoc, Player mo
   presumedNextMovePla = getOpp(movePla);
 
   Color maybeWinner = GameLogic::checkWinnerAfterPlayed(board, *this, movePla, moveLoc);
-  if(maybeWinner == C_BLACK || maybeWinner == C_WHITE) {  // game finished
+  if(maybeWinner != C_WALL) {  // game finished
     setWinner(maybeWinner);
-  } else if(fullBoard(0) /* moveHistory.size() == board.x_size * board.y_size*/) {
+  } else if(fullBoard(0)) {
     // full board 
-    isNoResult = true;
-    isGameFinished = true;
+    setWinner(C_EMPTY);
+  } else if(rules.maxMoves != 0 && getMovenum() >= rules.maxMoves) {
+    // maxmoves
+    setWinner(C_EMPTY);
   }
 }
 

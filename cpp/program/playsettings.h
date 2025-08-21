@@ -12,7 +12,7 @@ struct PlaySettings {
   double startPosesPolicyInitAvgMoveNum;  // Avg number of moves when using a starting position from sgf
   // Temperature to use for placing handicap stones and for initializing the board position
   double policyInitAreaTemperature;
-  bool policyInitGaussMoveNum;
+  double policyInitGaussMoveNum;
 
   double addBalanceMoveProb;
   double policyInitProb;

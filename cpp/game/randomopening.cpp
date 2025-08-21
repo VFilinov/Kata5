@@ -4,7 +4,7 @@
 #include "../program/playutils.h"
 
 extern bool extra_time_log;
-std::mutex outMutex2;
+//std::mutex outMutex2;
 
 using namespace RandomOpening;
 using namespace std;
@@ -82,8 +82,13 @@ static Loc getRandomNearbyMove(Board& board, Rand& gameRand, double avgDist) {
 static double getBoardValue(Search* bot, Board& board, const BoardHistory& hist, Player nextPlayer) {
   // evalCount++;
   NNEvaluator* nnEval = bot->nnEvaluator;
+
   MiscNNInputParams nnInputParams;
-  nnInputParams.noResultUtilityForWhite = bot->searchParams.noResultUtilityForWhite;
+
+  //nnInputParams.noResultUtilityForWhite = bot->searchParams.noResultUtilityForWhite;
+  nnInputParams.useVCFInput = false;
+  nnInputParams.suppressPass = false;
+  
   NNResultBuf buf;
 
   auto start = std::chrono::steady_clock::now();
@@ -99,7 +104,7 @@ static double getBoardValue(Search* bot, Board& board, const BoardHistory& hist,
   if(extra_time_log) {
     auto finish = std::chrono::steady_clock::now();
     auto time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-    lock_guard<std::mutex> lock(outMutex2);
+    //lock_guard<std::mutex> lock(outMutex2);
     cout << "getBoardValue : value " << value << " for " << (nextPlayer == P_BLACK ? "black " : "white ")
          << hist.getMoves(board.x_size, board.y_size) << " rule = " << hist.rules.toString() << " " << time.count()
          << " ms " << std::endl;
@@ -139,7 +144,17 @@ static Loc getBalanceMove(
     }
   }
 
-  double rootValueOpp = getBoardValue(bot, board, hist, oppPlayer);
+  // 13.04.25 - for version 1.16
+  Board boardCopy(board);
+  BoardHistory histCopy(hist);
+  histCopy.makeBoardMoveAssumeLegal(boardCopy, Board::PASS_LOC, nextPlayer);
+  if(oppPlayer == P_BLACK)
+    bot = botB;
+  else
+    bot = botW;
+
+  //double rootValueOpp = getBoardValue(bot, board, hist, oppPlayer);
+  double rootValueOpp = getBoardValue(bot, boardCopy, histCopy, oppPlayer);
   if(rootValueOpp < 0) {  // probably all moves are winning, even pass
     double rejectFactor = 1 - exp(-3 * rootValueOpp * rootValueOpp);
     if(gameRand.nextBool(rejectFactor) && gameRand.nextBool(rejectProb)) {
@@ -186,6 +201,11 @@ static Loc getBalanceMove(
       if(histCopy.isGameFinished)
         continue;
 
+      if(oppPlayer == P_BLACK)
+        bot = botB;
+      else
+        bot = botW;
+
       double value = getBoardValue(bot, boardCopy, histCopy, oppPlayer);
 
       double p = forSelfplay ? pow(1 - value * value, 4) : pow(1 - value * value, 10);
@@ -220,7 +240,7 @@ static Loc getBalanceMove(
 
   // some rare conditions, return NULL_LOC.
   if(logGenerate) {
-    lock_guard<std::mutex> lock(outMutex2);
+    //lock_guard<std::mutex> lock(outMutex2);
     cout << "totalProb=" << totalProb << ", probSum=" << probSum
               << " in getBalanceMove(), rule=" << hist.rules.toString() << std::endl;
   }
@@ -236,7 +256,7 @@ static Loc getBalanceMove(
   ASSERT_UNREACHABLE;*/
 }
 
-static bool tryInitializeBalancedRandomOpening(
+static int tryInitializeBalancedRandomOpening(
   Search* botB,
   Search* botW,
   Board& board,
@@ -251,6 +271,18 @@ static bool tryInitializeBalancedRandomOpening(
   Board boardCopy(board);
   BoardHistory histCopy(hist);
   Player nextPlayerCopy = nextPlayer;
+
+  // for generate and searcn balance
+  // histCopy.rules.VCNRule = Rules::VCNRULE_NOVC;
+
+  bool firstPassWin = hist.rules.firstPassWin;
+  int maxMoves = hist.rules.maxMoves; 
+  float komi = hist.rules.komi;
+
+  histCopy.rules.firstPassWin = false;
+  histCopy.rules.maxMoves = 0;
+  histCopy.rules.komi = 0.0;
+
   PlaySettings playSettings = gameRunner->getPlaySettings();
   
   auto start = std::chrono::steady_clock::now();
@@ -265,18 +297,21 @@ static bool tryInitializeBalancedRandomOpening(
       PlayUtils::initializeGameUsingPolicy(
         botB, botW, boardCopy, histCopy, nextPlayerCopy, gameRand, avgPolicyInitMoveNum, temperature, playSettings.policyInitGaussMoveNum);
       if(histCopy.isGameFinished)
-        return false;
+        return 0;
     } else
-      return false;
+      return -1;
   } 
   if(genProps.genAvgDist) {
     std::vector<float> randomMoveNumProb = gameRunner->getGameInitializer()->getRandomMoveNumProb(hist.rules.VCNRule);
 
     int maxRandomMoveNum = randomMoveNumProb.size();
 
-    if(maxRandomMoveNum == 0 && playSettings.logGenerate) {
-      lock_guard<std::mutex> lock(outMutex2);
-      cout << Rules::writeVCNRule(hist.rules.VCNRule) << " does not support balanced openings init" << endl;
+    if(maxRandomMoveNum == 0) {
+      //if(playSettings.logGenerate) {
+        //lock_guard<std::mutex> lock(outMutex2);
+        cout << Rules::writeVCNRule(hist.rules.VCNRule) << " does not support balanced openings init" << endl;
+      //}
+      return -1;
     }
 
     static const double avgRandomDistFactor = 0.8;
@@ -296,9 +331,14 @@ static bool tryInitializeBalancedRandomOpening(
         break;
       }
     }
-    if(randomMoveNum == -1)
-      ASSERT_UNREACHABLE;
-    // return false;
+    if(randomMoveNum == -1) {
+      // ASSERT_UNREACHABLE;
+      //if(playSettings.logGenerate) {
+        // lock_guard<std::mutex> lock(outMutex2);
+        cout << Rules::writeVCNRule(hist.rules.VCNRule) << " randomMoveNum = -1" << endl;
+      //}
+      return -1;
+    }
 
     double avgDist = gameRand.nextExponential() * avgRandomDistFactor;
     for(int i = 0; i < randomMoveNum; i++) {
@@ -306,7 +346,7 @@ static bool tryInitializeBalancedRandomOpening(
       histCopy.makeBoardMoveAssumeLegal(boardCopy, randomLoc, nextPlayerCopy);
 
       if(histCopy.isGameFinished)
-        return false;
+        return 0;
       nextPlayerCopy = getOpp(nextPlayerCopy);
     }
   }
@@ -316,7 +356,7 @@ static bool tryInitializeBalancedRandomOpening(
     auto time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
     ostringstream out;
     out << "Generate with ";
-    if(playSettings.initGamesWithAvgDist)
+    if(genProps.genAvgDist)
       out << "avgDist ";
     else
       out << "policy ";
@@ -324,7 +364,7 @@ static bool tryInitializeBalancedRandomOpening(
         << " rule = " << histCopy.rules.toString()  << " for "
         << time.count() << " ms" << std::endl;
 
-    lock_guard<std::mutex> lock(outMutex2);
+    //lock_guard<std::mutex> lock(outMutex2);
     cout << out.str();
   }
 
@@ -342,16 +382,17 @@ static bool tryInitializeBalancedRandomOpening(
       playSettings.logGenerate);
 
     if(balancedMove == Board::NULL_LOC)
-      return false;
+      return 0;
+
     string moves = histCopy.getMoves(boardCopy.x_size, boardCopy.y_size);
     histCopy.makeBoardMoveAssumeLegal(boardCopy, balancedMove, nextPlayerCopy);
     if(histCopy.isGameFinished)
-      return false;
+      return 0;
 
     if(extra_time_log) {
       auto finish = std::chrono::steady_clock::now();
       auto time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-      lock_guard<std::mutex> lock(outMutex2);
+      //lock_guard<std::mutex> lock(outMutex2);
       cout << "getBalanceMove : rule " << histCopy.rules.toString() << " moves :" << moves
            << (nextPlayerCopy == P_BLACK ? " black move " : " white move ")
            << histCopy.getMovenum() << "." << Global::toLower(Location::toString(balancedMove, boardCopy.x_size, boardCopy.y_size))
@@ -362,10 +403,14 @@ static bool tryInitializeBalancedRandomOpening(
 
   board = boardCopy;
   hist = histCopy;
+  hist.rules.firstPassWin = firstPassWin;
+  hist.rules.maxMoves = maxMoves;
+  hist.rules.komi = komi;
   nextPlayer = nextPlayerCopy;
 
-  return true;
+  return 1;
 }
+
 void RandomOpening::initializeBalancedRandomOpening(
   Search* botB,
   Search* botW,
@@ -379,9 +424,6 @@ void RandomOpening::initializeBalancedRandomOpening(
   double rejectProb = 0.995;
 
   PlaySettings playSettings = gameRunner->getPlaySettings();
-
-  //if(!(playSettings.initGamesWithPolicy && otherGameProps.allowPolicyInit) && !playSettings.initGamesWithAvgDist)
-  //  return;
 
   GenerationProperties genProps;
   
@@ -398,10 +440,21 @@ void RandomOpening::initializeBalancedRandomOpening(
     genProps.genAvgDist = !genProps.genPolicy;
   }
 
+  /*
+  BoardHistory histCopy = hist;
+  histCopy.rules.VCNRule = Rules::VCNRULE_NOVC;
+  histCopy.rules.firstPassWin = false;
+  histCopy.rules.maxMoves = 0;
+  histCopy.rules.komi = 0.0;
+  */
+
   auto start = std::chrono::steady_clock::now();
 
   int count = 0;
-  while(!tryInitializeBalancedRandomOpening(botB, botW, board, hist, nextPlayer, gameRand, rejectProb, gameRunner, otherGameProps, genProps)) {
+  int balatce = 0;
+  while(balatce == 0) {
+    balatce = tryInitializeBalancedRandomOpening(
+      botB, botW, board, hist, nextPlayer, gameRand, rejectProb, gameRunner, otherGameProps, genProps);
     if(playSettings.maxTryTimes == 0)
       break;
 
@@ -410,15 +463,23 @@ void RandomOpening::initializeBalancedRandomOpening(
     if(tryTimes > playSettings.maxTryTimes) {
       tryTimes = 0;
       if(playSettings.logGenerate) {
-        lock_guard<std::mutex> lock(outMutex2);
+        //lock_guard<std::mutex> lock(outMutex2);
         cout << "Reached max trying times for finding balanced openings, Rule=" << hist.rules.toString()
                   << std::endl;
       }
       rejectProb = 0.8;
     }
+    if(count > 1000) {
+      if(playSettings.logGenerate) {
+        // lock_guard<std::mutex> lock(outMutex2);
+        cout << "Reached greater 1000 times for finding balanced openings, Rule=" << hist.rules.toString()
+             << std::endl;
+      }
+      break;
+    }
   }
 
-  if(extra_time_log && count>1) {
+  if(extra_time_log && count > 1 && balatce == 1) {
     auto finish = std::chrono::steady_clock::now();
     auto time = std::chrono::duration_cast <std::chrono::milliseconds> (finish - start); 
     ostringstream out;
@@ -426,18 +487,18 @@ void RandomOpening::initializeBalancedRandomOpening(
     if(genProps.isBalancsMove)
       out << " rejectProb= " << rejectProb;
     out << " for " << time.count() << " ms" << std::endl;
-    lock_guard<std::mutex> lock(outMutex2);
+    //lock_guard<std::mutex> lock(outMutex2);
     cout << out.str();
   }
-  if(playSettings.logGenerate && hist.getMovenum() > 0) {
-    lock_guard<std::mutex> lock(outMutex2);
+
+  if(playSettings.logGenerate && hist.getMovenum() >0 && balatce == 1) {
+    //lock_guard<std::mutex> lock(outMutex2);
     cout << "   Rule:" << Rules::writeBasicRule(hist.rules.basicRule) << " ("
-              << Rules::writeVCNRule(hist.rules.VCNRule)
+         << Rules::writeVCNRule(hist.rules.VCNRule)
          << ") [" << board.x_size << "x" << board.y_size
          << "] moves : " << hist.getMoves(board.x_size, board.y_size) << " last move: " << hist.getMovenum()
          << endl;
   }
-
 
   // succeedCount++;
   // if(succeedCount%500==0) {

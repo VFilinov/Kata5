@@ -607,9 +607,11 @@ int MainCmds::samplesgfs(const vector<string>& args) {
   bool hashComments;
   double trainingWeight;
   int verbosity;
+  bool tolerateIllegalMoves;
 
   string valueFluctuationModelFile;
   double valueFluctuationTurnScale;
+  double valueFluctuationForwardTurnScale;
   double valueFluctuationMaxWeight;
   bool valueFluctuationMakeKomiFair;
   double valueFluctuationWeightBySurprise;
@@ -650,9 +652,11 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     TCLAP::SwitchArg hashCommentsArg("","hash-comments","Hash comments in sgf");
     TCLAP::ValueArg<double> trainingWeightArg("","training-weight","Scale the loss function weight from data from games that originate from this position",false,1.0,"WEIGHT");
     TCLAP::ValueArg<int> verbosityArg("","verbosity","Print more stuff",false,0,"INT");
+    TCLAP::SwitchArg tolerateIllegalMovesArg("", "tolerate-illegal-moves", "Tolerate illegal moves");
 
     TCLAP::ValueArg<string> valueFluctuationModelFileArg("","value-fluctuation-model","Upweight positions prior to value fluctuations",false,string(),"MODELFILE");
     TCLAP::ValueArg<double> valueFluctuationTurnScaleArg("","value-fluctuation-turn-scale","How much prior on average",false,1.0,"AVGTURNS");
+    TCLAP::ValueArg<double> valueFluctuationForwardTurnScaleArg("","value-fluctuation-forward-turn-scale","How much prior on average",false,1.0,"AVGTURNS");
     TCLAP::ValueArg<double> valueFluctuationMaxWeightArg("","value-fluctuation-max-weight","",false,10.0,"MAXWEIGHT");
   //TCLAP::SwitchArg valueFluctuationMakeKomiFairArg("","value-fluctuation-make-komi-fair","");
     TCLAP::ValueArg<double> valueFluctuationWeightBySurpriseArg("","value-fluctuation-weight-by-surprise","",false,0.0,"SCALE");
@@ -688,8 +692,10 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     cmd.add(hashCommentsArg);
     cmd.add(trainingWeightArg);
     cmd.add(verbosityArg);
+    cmd.add(tolerateIllegalMovesArg);
     cmd.add(valueFluctuationModelFileArg);
     cmd.add(valueFluctuationTurnScaleArg);
+    cmd.add(valueFluctuationForwardTurnScaleArg);
     cmd.add(valueFluctuationMaxWeightArg);
     //cmd.add(valueFluctuationMakeKomiFairArg);
     cmd.add(valueFluctuationWeightBySurpriseArg);
@@ -724,8 +730,10 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     hashComments = hashCommentsArg.getValue();
     trainingWeight = trainingWeightArg.getValue();
     verbosity = verbosityArg.getValue();
+    tolerateIllegalMoves = tolerateIllegalMovesArg.getValue();
     valueFluctuationModelFile = valueFluctuationModelFileArg.getValue();
     valueFluctuationTurnScale = valueFluctuationTurnScaleArg.getValue();
+    valueFluctuationForwardTurnScale = valueFluctuationForwardTurnScaleArg.getValue();
     valueFluctuationMaxWeight = valueFluctuationMaxWeightArg.getValue();
     //valueFluctuationMakeKomiFair = valueFluctuationMakeKomiFairArg.getValue();
     valueFluctuationWeightBySurprise = valueFluctuationWeightBySurpriseArg.getValue();
@@ -774,8 +782,10 @@ int MainCmds::samplesgfs(const vector<string>& args) {
 
   NNEvaluator* valueFluctuationNNEval = NULL;
   if(valueFluctuationModelFile != "") {
-    if(valueFluctuationTurnScale <= 0.0 || valueFluctuationTurnScale > 100000000.0)
+    if(valueFluctuationTurnScale < 1.0 || valueFluctuationTurnScale > 100000000.0)
       throw StringError("Invalid valueFluctuationTurnScale");
+    if(valueFluctuationForwardTurnScale < 1.0 || valueFluctuationForwardTurnScale > 100000000.0)
+      throw StringError("Invalid valueFluctuationForwardTurnScale");
     if(valueFluctuationMaxWeight <= 0.0 || valueFluctuationMaxWeight > 100000000.0)
       throw StringError("Invalid valueFluctuationMaxWeight");
     ConfigParser cfg;
@@ -807,7 +817,7 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     return true;
   };
 
-    auto isSgfOkay = [&](const Sgf* sgf, string& reasonBuf) {
+  auto isSgfOkay = [&](const Sgf* sgf, string& reasonBuf) {
     if(sgf->depth() > maxDepth)
     {reasonBuf = "depth" + Global::intToString(sgf->depth()); return false;}
     //if(std::fabs(sgf->getKomiOrDefault(7.5f)) > maxKomi)
@@ -1027,18 +1037,41 @@ int MainCmds::samplesgfs(const vector<string>& args) {
 
       // Apply exponential blur
       vector<double> winrateVarianceBlurred(winrateVariance.size());
-      double blurSum = 0.0;
+      {
+        double blurSum = 0.0;
+        for(size_t i = winrateVariance.size(); i--;) {
+          blurSum *= 1.0 - 1.0 / valueFluctuationTurnScale;
+          blurSum += winrateVariance[i];
+          winrateVarianceBlurred[i] = blurSum / valueFluctuationTurnScale; // Normalize so blur only sums to 1
+        }
+      }
+
+      //Apply exponential forward blur
+      if(valueFluctuationForwardTurnScale > 1.0) {
+        vector<double> winrateVarianceMoreBlurred(winrateVariance.size());
+        double blurSum = 0.0;
+        for(size_t i = 0; i < winrateVariance.size(); i++) {
+          blurSum *= 1.0 - 1.0 / valueFluctuationForwardTurnScale;
+          blurSum += winrateVarianceBlurred[i];
+          winrateVarianceMoreBlurred[i] = blurSum / valueFluctuationForwardTurnScale; // Normalize so blur only sums to 1
+        }
+        winrateVarianceBlurred = winrateVarianceMoreBlurred;
+      }
+
       double totalWeight = 0.0;
       int totalCount = 0;
-      for(size_t i = winrateVariance.size(); i--;) {
-        blurSum *= 1.0 - 1.0 / valueFluctuationTurnScale;
-        blurSum += winrateVariance[i];
+      for(size_t i = 0; i < winrateVariance.size(); i++) {
         if(i >= minTurnNumber && i <= maxTurnNumber) {
-          winrateVarianceBlurred[i] = blurSum;
+          // Rescale so the blur has total weight valueFluctuationTurnScale + valueFluctuationForwardTurnScale
+          winrateVarianceBlurred[i] *= valueFluctuationTurnScale + valueFluctuationForwardTurnScale;
           totalWeight += winrateVarianceBlurred[i];
           totalCount += 1;
         }
+        else {
+          winrateVarianceBlurred[i] = 0;
+        }
       }
+
       if(totalCount <= 0 || totalWeight <= 0)
         return;
 
@@ -1142,7 +1175,10 @@ int MainCmds::samplesgfs(const vector<string>& args) {
         sgf = Sgf::loadFile(sgfFiles[index]);
         trySgf(sgf);
       } catch(const StringError& e) {
-        logger.write("Invalid SGF " + sgfFiles[index] + ": " + e.what());
+        if(tolerateIllegalMoves)
+          logger.write("Invalid SGF " + sgfFiles[index] + ": " + e.what());
+        else
+          throw;
       }
       if(sgf != NULL) {
         delete sgf;
@@ -1161,7 +1197,10 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     try {
       sgfs = Sgf::loadSgfsFile(sgfsFiles[i]);
     } catch(const StringError& e) {
-      logger.write("Invalid SGFS " + sgfsFiles[i] + ": " + e.what());
+      if(tolerateIllegalMoves)
+        logger.write("Invalid SGFS " + sgfsFiles[i] + ": " + e.what());
+      else
+        throw;
       continue;
     }
 
@@ -1170,7 +1209,10 @@ int MainCmds::samplesgfs(const vector<string>& args) {
       try {
         trySgf(sgfs[index]);
       } catch(const StringError& e) {
-        logger.write("Bad sgf in SGFS" + sgfsFiles[index] + ": " + e.what());
+        if(tolerateIllegalMoves)
+          logger.write("Bad sgf in SGFS" + sgfsFiles[index] + ": " + e.what());
+        else
+          throw;
       }
     };
     Parallel::iterRange(
@@ -1288,6 +1330,7 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
 
   ConfigParser cfg;
   string nnModelFile;
+  vector<string> sgfFilesFromCmdline;
   vector<string> sgfDirs;
   vector<string> sgfsDirs;
   string outDir;
@@ -1327,7 +1370,8 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
     cmd.addModelFileArg();
     cmd.addOverrideConfigArg();
 
-    TCLAP::MultiArg<string> sgfDirArg("","sgfdir","Directory of sgf files",false,"DIR");
+    TCLAP::MultiArg<string> sgfArg("", "sgf", "Sgf file", false, "SGF");
+    TCLAP::MultiArg<string> sgfDirArg("", "sgfdir", "Directory of sgf files", false, "DIR");
     TCLAP::MultiArg<string> sgfsDirArg("","sgfsdir","Directory of sgfs files",false,"DIR");
     TCLAP::ValueArg<string> outDirArg("","outdir","Directory to write results",true,string(),"DIR");
     TCLAP::ValueArg<int> numProcessThreadsArg("","threads","Number of threads",true,1,"THREADS");
@@ -1359,6 +1403,7 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
 
     TCLAP::SwitchArg forTestingArg("","for-testing","For testing");
 
+    cmd.add(sgfArg);
     cmd.add(sgfDirArg);
     cmd.add(sgfsDirArg);
     cmd.add(outDirArg);
@@ -1392,6 +1437,7 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
     cmd.parseArgs(args);
 
     nnModelFile = cmd.getModelFile();
+    sgfFilesFromCmdline = sgfArg.getValue();
     sgfDirs = sgfDirArg.getValue();
     sgfsDirs = sgfsDirArg.getValue();
     outDir = outDirArg.getValue();
@@ -1479,6 +1525,10 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
   vector<string> sgfFiles;
   FileHelpers::collectSgfsFromDirsOrFiles(sgfDirs,sgfFiles);
   FileHelpers::collectMultiSgfsFromDirsOrFiles(sgfsDirs,sgfFiles);
+
+  for(const string& s: sgfFilesFromCmdline)
+    sgfFiles.push_back(s);
+
   logger.write("Found " + Global::int64ToString((int64_t)sgfFiles.size()) + " sgf(s) files!");
 
   if(forTesting)
@@ -1738,10 +1788,8 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
           return 0.0;
       }
       if(moreUtilityWeight > 0.0) {
-        selfUtilityOfBestOtherMove =
-          std::max(selfUtilityOfBestOtherMove, (nextPla == P_WHITE ? moveValues.utility : -moveValues.utility));
-        selfUtilityOfHintMove =
-          std::max(selfUtilityOfHintMove, (nextPla == P_WHITE ? missedValues.utility : -missedValues.utility));
+        selfUtilityOfBestOtherMove = std::max(selfUtilityOfBestOtherMove, (nextPla == P_WHITE ? moveValues.utility : -moveValues.utility));
+        selfUtilityOfHintMove = std::max(selfUtilityOfHintMove, (nextPla == P_WHITE ? missedValues.utility : -missedValues.utility));
       }
 
       bool shouldWriteMove = false;
@@ -2097,14 +2145,11 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
       pla = getOpp(pla);
     }
 
-    //Make sure the hinted move is legal too
-    int hintIdx = (int)treeHist.moveHistory.size()-1;
-    if(!treeHist.isLegal(board,treeHist.moveHistory[hintIdx].loc,treeHist.moveHistory[hintIdx].pla))
-      return;
+    // Make sure the hinted move is legal too under our randomized rules.
+    int hintIdx = (int)treeHist.moveHistory.size() - 1;
     assert(treeHist.moveHistory[hintIdx].pla == pla);
     assert(treeHist.moveHistory[hintIdx].loc == sample.hintLoc);
 
-    //And make sure it's legal under our randomized rules.
     if(!hist.isLegal(board,sample.hintLoc,pla))
       return;
 
@@ -2361,6 +2406,7 @@ int MainCmds::trystartposes(const vector<string>& args) {
   string nnModelFile;
   vector<string> startPosesFiles;
   double minWeight;
+  bool randomSample;
   try {
     KataGoCommandLine cmd("Try running searches starting from startposes");
     cmd.addConfigFileArg("","");
@@ -2369,12 +2415,15 @@ int MainCmds::trystartposes(const vector<string>& args) {
 
     TCLAP::MultiArg<string> startPosesFileArg("","startposes","Startposes file",true,"DIR");
     TCLAP::ValueArg<double> minWeightArg("","min-weight","Minimum weight of startpos to try",false,0.0,"WEIGHT");
+    TCLAP::SwitchArg randomSampleArg("", "random-sample", "Weighted random sample");
     cmd.add(startPosesFileArg);
     cmd.add(minWeightArg);
+    cmd.add(randomSampleArg);
     cmd.parseArgs(args);
     nnModelFile = cmd.getModelFile();
     startPosesFiles = startPosesFileArg.getValue();
     minWeight = minWeightArg.getValue();
+    randomSample = randomSampleArg.getValue();
     cmd.getConfig(cfg);
   }
   catch (TCLAP::ArgException &e) {
@@ -2431,10 +2480,23 @@ int MainCmds::trystartposes(const vector<string>& args) {
   string searchRandSeed = Global::uint64ToString(seedRand.nextUInt64());
   Search* search = new Search(params,nnEval,&logger,searchRandSeed);
 
+  std::vector<double> startPosCumProbs;
+  double cumProb = 0;
+  for(size_t i = 0; i < startPoses.size(); i++) {
+    cumProb += startPoses[i].weight;
+    startPosCumProbs.push_back(cumProb);
+  }
+
   // ---------------------------------------------------------------------------------------------------
 
   for(size_t s = 0; s<startPoses.size(); s++) {
-    const Sgf::PositionSample& startPos = startPoses[s];
+    size_t r;
+    if(randomSample)
+      r = seedRand.nextIndexCumulative(startPosCumProbs.data(), startPosCumProbs.size());
+    else
+      r = s;
+
+    const Sgf::PositionSample& startPos = startPoses[r];
     if(startPos.weight < minWeight)
       continue;
 
@@ -3031,5 +3093,167 @@ int MainCmds::evalrandominits(const vector<string>& args) {
   if(nnEval != NULL)
     delete nnEval;
 
+  return 0;
+}
+
+int MainCmds::genposesfromselfplayinit(const vector<string>& args) {
+  Board::initHash();
+  Rand seedRand;
+
+  ConfigParser cfg;
+  string nnModelFile;
+  string outDir;
+  int numPosesToWrite;
+  int numProcessThreads;
+  int maxPosesPerOutFile;
+
+  try {
+    KataGoCommandLine cmd("Search for suprising good moves in sgfs");
+    cmd.addConfigFileArg("","");
+    cmd.addModelFileArg();
+    cmd.addOverrideConfigArg();
+
+    TCLAP::ValueArg<string> outDirArg("","outdir","Directory to write results",true,string(),"DIR");
+    TCLAP::ValueArg<int> numPosesToWriteArg("","poses","Number of poses to write",true,100,"N");
+    TCLAP::ValueArg<int> numProcessThreadsArg("","threads","Number of threads",true,1,"THREADS");
+    TCLAP::ValueArg<int> maxPosesPerOutFileArg("","max-poses-per-out-file","Number of hintposes per output file",false,100000,"INT");
+
+    cmd.add(outDirArg);
+    cmd.add(numPosesToWriteArg);
+    cmd.add(numProcessThreadsArg);
+    cmd.add(maxPosesPerOutFileArg);
+    cmd.parseArgs(args);
+
+    nnModelFile = cmd.getModelFile();
+    outDir = outDirArg.getValue();
+    numPosesToWrite = numPosesToWriteArg.getValue();
+    numProcessThreads = numProcessThreadsArg.getValue();
+    maxPosesPerOutFile = maxPosesPerOutFileArg.getValue();
+
+    cmd.getConfig(cfg);
+  }
+  catch (TCLAP::ArgException &e) {
+    cerr << "Error: " << e.error() << " for argument " << e.argId() << endl;
+    return 1;
+  }
+
+  MakeDir::make(outDir);
+
+  const bool logToStdoutDefault = true;
+  Logger logger(&cfg, logToStdoutDefault);
+  logger.addFile(outDir + "/" + "log.log");
+  for(const string& arg: args)
+    logger.write(string("Command: ") + arg);
+  logger.write("Git revision " + Version::getGitRevision());
+
+  SearchParams params = Setup::loadSingleParams(cfg,Setup::SETUP_FOR_ANALYSIS);
+
+  NNEvaluator* nnEval;
+  {
+    Setup::initializeSession(cfg);
+    const int expectedConcurrentEvals = params.numThreads;
+    const int defaultMaxBatchSize = std::max(8,((params.numThreads+3)/4)*4);
+    const bool defaultRequireExactNNLen = false;
+    const bool disableFP16 = false;
+    const string expectedSha256 = "";
+    nnEval = Setup::initializeNNEvaluator(
+      nnModelFile,nnModelFile,expectedSha256,cfg,logger,seedRand,expectedConcurrentEvals,
+      NNPos::MAX_BOARD_LEN,NNPos::MAX_BOARD_LEN,defaultMaxBatchSize,defaultRequireExactNNLen,disableFP16,
+      Setup::SETUP_FOR_ANALYSIS
+    );
+  }
+  logger.write("Loaded neural net");
+
+  PlaySettings playSettings = PlaySettings::loadForSelfplay(cfg);
+  {
+    GameRunner* gameRunner = new GameRunner(cfg, playSettings, logger);
+    cfg.warnUnusedKeys(cerr,&logger);
+    Setup::maybeWarnHumanSLParams(params,nnEval,NULL,cerr,&logger);
+    delete gameRunner;
+  }
+
+  if(!std::atomic_is_lock_free(&shouldStop))
+    throw StringError("shouldStop is not lock free, signal-quitting mechanism for terminating matches will NOT work!");
+  std::signal(SIGINT, signalHandler);
+  std::signal(SIGTERM, signalHandler);
+
+  // ---------------------------------------------------------------------------------------------------
+  const int sgfSplitIdx = 0;
+    const int sgfSplitCount = 1;
+  PosWriter posWriter("outposes.txt", outDir, sgfSplitCount, sgfSplitIdx, maxPosesPerOutFile);
+
+  std::atomic<int64_t> nextPosIdx(0);
+  auto genPosLoop = [&]() {
+    Rand rand;
+    MatchPairer::BotSpec botSpec;
+    botSpec.botIdx = 0;
+    botSpec.botName = nnModelFile;
+    botSpec.nnEval = nnEval;
+    botSpec.baseParams = SearchParams();
+    botSpec.baseParams.maxVisits = 5;
+
+    GameRunner* gameRunner = new GameRunner(cfg, Global::uint64ToString(rand.nextUInt64()), playSettings, logger);
+    auto shouldStopFunc = []() noexcept {
+      return shouldStop.load();
+    };
+    WaitableFlag* shouldPause = nullptr;
+
+    while(true) {
+      if(shouldStop.load(std::memory_order_acquire))
+        break;
+      int64_t posIdx = nextPosIdx.fetch_add(1, std::memory_order_acq_rel);
+      if(posIdx >= numPosesToWrite)
+        break;
+
+      string seed = Global::uint64ToString(rand.nextUInt64());
+      //ForkData* forkData = new ForkData();
+      FinishedGameData* data = gameRunner->runGame(seed, botSpec, botSpec, /*forkData, */ NULL, logger, shouldStopFunc, shouldPause, nullptr, nullptr, nullptr);
+
+      Sgf::PositionSample sampleToWrite;
+      Sgf::PositionSample::writePosOfHist(sampleToWrite, data->startHist, data->startPla);
+
+      // Random symmetry
+      int symmetry = (int)rand.nextInt(0,7);
+      Board symBoard = SymmetryHelpers::getSymBoard(sampleToWrite.board, symmetry);
+      sampleToWrite.board = symBoard;
+      for(size_t i = 0; i<sampleToWrite.moves.size(); i++) {
+        sampleToWrite.moves[i].loc = SymmetryHelpers::getSymLoc(sampleToWrite.moves[i].loc, sampleToWrite.board, symmetry);
+      }
+      sampleToWrite.hintLoc = SymmetryHelpers::getSymLoc(sampleToWrite.hintLoc, sampleToWrite.board, symmetry);
+
+      posWriter.writePos(sampleToWrite);
+
+      delete data;
+      //delete forkData;
+    }
+
+    delete gameRunner;
+  };
+
+  // ---------------------------------------------------------------------------------------------------
+
+  //Begin writing
+  posWriter.start();
+
+  vector<std::thread> threads;
+  for(int i = 0; i<numProcessThreads; i++) {
+    threads.push_back(std::thread(genPosLoop));
+  }
+
+  for(size_t i = 0; i<threads.size(); i++)
+    threads[i].join();
+
+  logger.write("Waiting for final writing and cleanup");
+  posWriter.flushAndStop();
+
+  logger.write(nnEval->getModelFileName());
+  logger.write("NN rows: " + Global::int64ToString(nnEval->numRowsProcessed()));
+  logger.write("NN batches: " + Global::int64ToString(nnEval->numBatchesProcessed()));
+  logger.write("NN avg batch size: " + Global::doubleToString(nnEval->averageProcessedBatchSize()));
+
+  logger.write("All done");
+
+  delete nnEval;
+  NeuralNet::globalCleanup();
   return 0;
 }

@@ -1175,12 +1175,10 @@ int MainCmds::analysis(const vector<string>& args) {
         Player movePla = moveHistory[turnNumber].pla;
         Loc moveLoc = moveHistory[turnNumber].loc;
         if(movePla != nextPla) {
-          //board.clearSimpleKoLoc();
-          hist.clear(board,movePla,rules/*,hist.encorePhase*/);
-          //hist.setAssumeMultipleStartingBlackMovesAreHandicap(assumeMultipleStartingBlackMovesAreHandicap);
+          hist.clear(board,movePla,rules);
         }
 
-        bool suc = hist.makeBoardMoveTolerant(board, moveLoc, movePla /*, preventEncore*/);
+        bool suc = hist.makeBoardMoveTolerant(board, moveLoc, movePla);
         if(!suc) {
           reportErrorForId(rbase.id, "moves", "Illegal move " + Global::intToString(turnNumber) + ": " + Location::toString(moveLoc,board));
           foundIllegalMove = true;

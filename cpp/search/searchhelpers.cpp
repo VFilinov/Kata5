@@ -45,6 +45,7 @@ uint32_t Search::chooseIndexWithTemperature(
         bestIdx = i;
       }
     }
+    processedRelProbsBuf[bestIdx] = 1.0;
     return bestIdx;
   }
   //Actual temperature
